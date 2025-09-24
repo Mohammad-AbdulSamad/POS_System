@@ -20,18 +20,19 @@ app.use(cors());
 app.use(express.json());
 
 // Routes
-app.use("/users", userRoutes);
-app.use("/branches", branchRoutes);
-app.use("/categories", categorieRoutes);
-app.use("/products", productRoutes);
-app.use("/suppliers", supplierRoutes);
-app.use("/customers", customerRoutes);
-app.use("/transactions", transactionRoutes);
-app.use("/transactionLines", transactionLinesRoutes);
-app.use("/payments", paymentsRoutes);
-app.use("/stockMovements", stockMovementsRoutes);
-app.use("/taxRates", taxRatesRoutes);
-app.use("/promotions", promotionsRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/branches", branchRoutes);
+app.use("/api/categories", categorieRoutes);
+app.use("/api/products", productRoutes);
+app.use("/api/suppliers", supplierRoutes);
+app.use("/api/customers", customerRoutes);
+app.use("/api/transactions", transactionRoutes);
+app.use("/api/transactionLines", transactionLinesRoutes);
+app.use("/api/payments", paymentsRoutes);
+app.use("/api/stockMovements", stockMovementsRoutes);
+app.use("/api/taxRates", taxRatesRoutes);
+app.use("/api/promotions", promotionsRoutes);
 // Server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
+export default app;

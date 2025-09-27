@@ -391,10 +391,7 @@ export const getCategoryAnalytics = async (req, res) => {
         where: {
           categoryId: req.params.id,
           active: true,
-          OR: [
-            { stock: { lte: prisma.raw('COALESCE("minStock", 10)') } },
-            { stock: { lte: 10 } }
-          ]
+          stock: { lte: 4 }
         }
       }),
       prisma.product.count({

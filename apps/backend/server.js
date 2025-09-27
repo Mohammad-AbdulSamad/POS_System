@@ -27,7 +27,7 @@ app.use("/api/products", productRoutes);
 app.use("/api/suppliers", supplierRoutes);
 app.use("/api/customers", customerRoutes);
 app.use("/api/transactions", transactionRoutes);
-app.use("/api/transactionLines", transactionLinesRoutes);
+app.use("/api/transaction-lines", transactionLinesRoutes);
 app.use("/api/payments", paymentsRoutes);
 app.use("/api/stockMovements", stockMovementsRoutes);
 app.use("/api/taxRates", taxRatesRoutes);

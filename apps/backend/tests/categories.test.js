@@ -791,7 +791,9 @@ describe('Categories API - Production Ready', () => {
       const booksResponse = await request(app)
         .get(`/api/categories/${categories[1].id}/products`);
 
-      expect(electronicsResponse.body.pricing.maxPrice).toBeGreaterThan(500);
+      let temp = parseFloat(electronicsResponse.body.pricing.maxPrice);
+      expect(electronicsResponse.status).toBe(200);
+      expect(temp).toBeGreaterThan(500);
       expect(booksResponse.body.products[0].name).toBe('Novel');
     });
 

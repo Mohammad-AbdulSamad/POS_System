@@ -19,7 +19,10 @@
     "test:branches": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js tests/branches.test.js",
     "test:products": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js tests/products.test.js",
     "test:transactions": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js tests/transactions.test.js",
-    "test:categories": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js tests/categories.test.js"
+    "test:categories": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js tests/categories.test.js",
+    "test:transactionLines": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js tests/transactionLines.test.js",
+    "test:customers": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js tests/customers.test.js",
+    "test:suppliers": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js tests/suppliers.test.js"
   },
   "keywords": [],
   "author": "",

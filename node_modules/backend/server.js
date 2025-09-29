@@ -12,6 +12,7 @@ import paymentsRoutes from "./routes/payments.routes.js";
 import stockMovementsRoutes from "./routes/stockMovements.routes.js";
 import taxRatesRoutes from "./routes/taxRates.routes.js";
 import promotionsRoutes from "./routes/promotions.routes.js";
+import returnsRoutes from "./routes/returns.routes.js";
 
 const app = express();
 
@@ -32,6 +33,7 @@ app.use("/api/payments", paymentsRoutes);
 app.use("/api/stock-Movements", stockMovementsRoutes);
 app.use("/api/taxrates", taxRatesRoutes);
 app.use("/api/promotions", promotionsRoutes);
+app.use("/api/returns", returnsRoutes);
 // Server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));

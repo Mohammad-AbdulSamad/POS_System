@@ -3,22 +3,46 @@ import * as stockMovementsController from "../controllers/stockMovements.control
 
 const router = Router();
 
-// Get all stock movements
-router.get("/", stockMovementsController.getAllMovements);
+// Basic CRUD operations
+router.get("/", stockMovementsController.getAllStockMovements);
+router.get("/:id", stockMovementsController.getStockMovementById);
+router.post("/", stockMovementsController.createStockMovement);
+router.put("/:id", stockMovementsController.updateStockMovement);
+router.delete("/:id", stockMovementsController.deleteStockMovement);
 
-// Get movements for a specific product
+// Product-specific operations
 router.get("/product/:productId", stockMovementsController.getMovementsByProduct);
+router.get("/product/:productId/history", stockMovementsController.getProductStockHistory);
+router.get("/product/:productId/current-stock", stockMovementsController.getCurrentProductStock);
 
-// Get movements for a specific branch
+// Branch-specific operations
 router.get("/branch/:branchId", stockMovementsController.getMovementsByBranch);
+router.get("/branch/:branchId/summary", stockMovementsController.getBranchStockSummary);
+router.get("/branch/:branchId/low-stock", stockMovementsController.getLowStockProducts);
 
-// Get current stock (aggregate) for product in branch
-router.get("/branch/:branchId/product/:productId", stockMovementsController.getCurrentStock);
+// Reason-based filtering
+router.get("/reason/:reason", stockMovementsController.getMovementsByReason);
 
-// Create new stock movement
-router.post("/", stockMovementsController.createMovement);
+// Bulk operations
+router.post("/bulk", stockMovementsController.createBulkMovements);
+router.post("/bulk-adjustment", stockMovementsController.bulkStockAdjustment);
 
-// Delete stock movement (🔒 admin only — for later auth)
-router.delete("/:id", stockMovementsController.deleteMovement);
+// Stock operations
+router.post("/receive-stock", stockMovementsController.receiveStock);
+router.post("/adjust-stock", stockMovementsController.adjustStock);
+router.post("/transfer-stock", stockMovementsController.transferStock);
+router.post("/record-sale", stockMovementsController.recordSale);
+router.post("/record-spoilage", stockMovementsController.recordSpoilage);
+
+// Analytics & Reports
+router.get("/analytics/movement-trends", stockMovementsController.getMovementTrends);
+router.get("/analytics/stock-velocity", stockMovementsController.getStockVelocity);
+router.get("/analytics/waste-report", stockMovementsController.getWasteReport);
+router.get("/analytics/turnover-rate", stockMovementsController.getTurnoverRate);
+
+// Validation & Reconciliation
+router.post("/validate-stock", stockMovementsController.validateCurrentStock);
+router.post("/reconcile-stock", stockMovementsController.reconcileStock);
+router.get("/discrepancies", stockMovementsController.getStockDiscrepancies);
 
 export default router;

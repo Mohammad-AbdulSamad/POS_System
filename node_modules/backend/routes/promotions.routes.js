@@ -1,18 +1,22 @@
+// routes/promotions.routes.js
 import { Router } from "express";
-import {
-  createPromotion,
-  getPromotions,
-  getPromotionById,
-  updatePromotion,
-  deletePromotion,
-} from "../controllers/promotions.controller.js";
+import * as promotionsController from "../controllers/promotions.controller.js";
 
 const router = Router();
 
-router.post("/", createPromotion);        // Create promotion
-router.get("/", getPromotions);           // List promotions
-router.get("/:id", getPromotionById);     // Get single promotion
-router.put("/:id", updatePromotion);      // Update promotion
-router.delete("/:id", deletePromotion);   // Delete promotion (later restrict to admin)
+// Basic CRUD operations
+router.get("/", promotionsController.getAllPromotions);
+router.get("/:id", promotionsController.getPromotionById);
+router.post("/", promotionsController.createPromotion);
+router.put("/:id", promotionsController.updatePromotion);
+router.delete("/:id", promotionsController.deletePromotion);
+
+// Promotion-specific operations
+router.post("/calculate", promotionsController.calculateDiscount);
+router.get("/:id/products", promotionsController.getPromotionProducts);
+
+// Product and category management
+router.post("/:id/assign-products", promotionsController.assignProductsToPromotion);
+router.post("/:id/assign-categories", promotionsController.assignCategoriesToPromotion);
 
 export default router;

@@ -22,7 +22,12 @@
     "test:categories": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js tests/categories.test.js",
     "test:transactionLines": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js tests/transactionLines.test.js",
     "test:customers": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js tests/customers.test.js",
-    "test:suppliers": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js tests/suppliers.test.js"
+    "test:suppliers": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js tests/suppliers.test.js",
+    "test:stockMovements": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js tests/stockMovements.test.js",
+    "test:payments": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js tests/payments.test.js",
+    "test:taxRates": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js tests/taxRates.test.js",
+    "test:promotions": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js tests/promotions.test.js"
+   
   },
   "keywords": [],
   "author": "",

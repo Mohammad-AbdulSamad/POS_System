@@ -29,8 +29,8 @@ app.use("/api/customers", customerRoutes);
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/transaction-lines", transactionLinesRoutes);
 app.use("/api/payments", paymentsRoutes);
-app.use("/api/stockMovements", stockMovementsRoutes);
-app.use("/api/taxRates", taxRatesRoutes);
+app.use("/api/stock-Movements", stockMovementsRoutes);
+app.use("/api/taxrates", taxRatesRoutes);
 app.use("/api/promotions", promotionsRoutes);
 // Server
 const PORT = process.env.PORT || 5000;

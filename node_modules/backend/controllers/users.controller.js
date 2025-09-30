@@ -1,89 +1,684 @@
-// ES Module import
-import pkg from '@prisma/client';
-const { PrismaClient, Role, PaymentMethod } = pkg;
-
-
-const prisma = new PrismaClient();
+// controllers/users.controller.js
+import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
 
-// 🟢 Get all users (admin/manager only)
-export const getUsers = async (req, res) => {
+const prisma = new PrismaClient();
+const SALT_ROUNDS = 10;
+
+// Valid roles
+const VALID_ROLES = ['ADMIN', 'MANAGER', 'CASHIER', 'STOCK_MANAGER'];
+
+// Helper function to validate role
+const isValidRole = (role) => {
+  return !role || VALID_ROLES.includes(role.toUpperCase());
+};
+
+// Helper function to validate email
+const isValidEmail = (email) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
+// Helper function to validate password strength
+const isValidPassword = (password) => {
+  // At least 8 characters, 1 uppercase, 1 lowercase, 1 number
+  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+  return passwordRegex.test(password);
+};
+
+// 🟢 Get all users with filtering and pagination
+export const getAllUsers = async (req, res) => {
   try {
-    const users = await prisma.user.findMany({
-      select: { id: true, name: true, email: true, role: true, branchId: true },
+    const {
+      branchId,
+      role,
+      search,
+      active,
+      page = 1,
+      limit = 50
+    } = req.query;
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const where = {
+      ...(branchId && { branchId }),
+      ...(role && { role: role.toUpperCase() }),
+      ...(search && {
+        OR: [
+          { name: { contains: search, mode: 'insensitive' } },
+          { email: { contains: search, mode: 'insensitive' } },
+          { phone: { contains: search, mode: 'insensitive' } }
+        ]
+      })
+    };
+
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          phone: true,
+          role: true,
+          branchId: true,
+          createdAt: true,
+          branch: {
+            select: {
+              id: true,
+              name: true,
+              address: true
+            }
+          },
+          _count: {
+            select: {
+              transactions: true
+            }
+          }
+        },
+        skip: parseInt(skip),
+        take: parseInt(limit),
+        orderBy: { createdAt: 'desc' }
+      }),
+      prisma.user.count({ where })
+    ]);
+
+    res.json({
+      users,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / parseInt(limit))
+      }
     });
-    res.json(users);
   } catch (err) {
+    console.error('Error in getAllUsers:', err);
     res.status(500).json({ message: "Error fetching users", error: err.message });
   }
 };
 
-// 🟢 Get a single user by ID
-export const getUser = async (req, res) => {
+// 🟢 Get user by ID
+export const getUserById = async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.params.id },
-      select: { id: true, name: true, email: true, role: true, branchId: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        phone: true,
+        role: true,
+        branchId: true,
+        createdAt: true,
+        branch: {
+          select: {
+            id: true,
+            name: true,
+            address: true
+          }
+        },
+        _count: {
+          select: {
+            transactions: true
+          }
+        }
+      }
     });
 
-    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
     res.json(user);
   } catch (err) {
+    console.error('Error in getUserById:', err);
     res.status(500).json({ message: "Error fetching user", error: err.message });
   }
 };
 
-// 🟢 Create a user (admin only)
+// 🟢 Create user
 export const createUser = async (req, res) => {
   try {
-    const { name, email, password, role, branchId } = req.body;
+    const { email, name, password, phone, role, branchId } = req.body;
 
-    const existing = await prisma.user.findUnique({ where: { email } });
-    if (existing) return res.status(400).json({ message: "Email already exists" });
+    // Validate required fields
+    if (!email || !password) {
+      return res.status(400).json({
+        message: "Email and password are required"
+      });
+    }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Validate email format
+    if (!isValidEmail(email)) {
+      return res.status(400).json({
+        message: "Invalid email format"
+      });
+    }
 
-    const newUser = await prisma.user.create({
-      data: { name, email, password: hashedPassword, role, branchId },
-      select: { id: true, name: true, email: true, role: true, branchId: true },
+    // Validate password strength
+    if (!isValidPassword(password)) {
+      return res.status(400).json({
+        message: "Password must be at least 8 characters with uppercase, lowercase, and number"
+      });
+    }
+
+    // Validate role if provided
+    if (role && !isValidRole(role)) {
+      return res.status(400).json({
+        message: `Invalid role. Must be one of: ${VALID_ROLES.join(', ')}`
+      });
+    }
+
+    // Check if email already exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email }
     });
 
-    res.status(201).json(newUser);
+    if (existingUser) {
+      return res.status(409).json({
+        message: "Email already registered"
+      });
+    }
+
+    // Validate branch exists if provided
+    if (branchId) {
+      const branch = await prisma.branch.findUnique({
+        where: { id: branchId }
+      });
+
+      if (!branch) {
+        return res.status(404).json({ message: "Branch not found" });
+      }
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+
+    // Create user
+    const user = await prisma.user.create({
+      data: {
+        email,
+        name: name || null,
+        password: hashedPassword,
+        phone: phone || null,
+        role: role ? role.toUpperCase() : 'CASHIER',
+        branchId: branchId || null
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        phone: true,
+        role: true,
+        branchId: true,
+        createdAt: true,
+        branch: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      }
+    });
+
+    res.status(201).json(user);
   } catch (err) {
+    console.error('Error in createUser:', err);
     res.status(500).json({ message: "Error creating user", error: err.message });
   }
 };
 
-// 🟢 Update a user (admin only)
+// 🟢 Update user
 export const updateUser = async (req, res) => {
   try {
-    const { name, email, password, role, branchId } = req.body;
+    const { email, name, password, phone, role, branchId } = req.body;
 
-    const updateData = {};
-    if (name) updateData.name = name;
-    if (email) updateData.email = email;
-    if (password) updateData.password = await bcrypt.hash(password, 10);
-    if (role) updateData.role = role;
-    if (branchId) updateData.branchId = branchId;
-
-    const updatedUser = await prisma.user.update({
-      where: { id: req.params.id },
-      data: updateData,
-      select: { id: true, name: true, email: true, role: true, branchId: true },
+    // Check if user exists
+    const existingUser = await prisma.user.findUnique({
+      where: { id: req.params.id }
     });
 
-    res.json(updatedUser);
+    if (!existingUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Validate email if provided
+    if (email && !isValidEmail(email)) {
+      return res.status(400).json({
+        message: "Invalid email format"
+      });
+    }
+
+    // Check email uniqueness if changing email
+    if (email && email !== existingUser.email) {
+      const emailExists = await prisma.user.findUnique({
+        where: { email }
+      });
+
+      if (emailExists) {
+        return res.status(409).json({
+          message: "Email already registered"
+        });
+      }
+    }
+
+    // Validate password if provided
+    if (password && !isValidPassword(password)) {
+      return res.status(400).json({
+        message: "Password must be at least 8 characters with uppercase, lowercase, and number"
+      });
+    }
+
+    // Validate role if provided
+    if (role && !isValidRole(role)) {
+      return res.status(400).json({
+        message: `Invalid role. Must be one of: ${VALID_ROLES.join(', ')}`
+      });
+    }
+
+    // Validate branch if provided
+    if (branchId) {
+      const branch = await prisma.branch.findUnique({
+        where: { id: branchId }
+      });
+
+      if (!branch) {
+        return res.status(404).json({ message: "Branch not found" });
+      }
+    }
+
+    // Prepare update data
+    const updateData = {
+      ...(email && { email }),
+      ...(name !== undefined && { name: name || null }),
+      ...(phone !== undefined && { phone: phone || null }),
+      ...(role && { role: role.toUpperCase() }),
+      ...(branchId !== undefined && { branchId: branchId || null })
+    };
+
+    // Hash password if provided
+    if (password) {
+      updateData.password = await bcrypt.hash(password, SALT_ROUNDS);
+    }
+
+    // Update user
+    const user = await prisma.user.update({
+      where: { id: req.params.id },
+      data: updateData,
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        phone: true,
+        role: true,
+        branchId: true,
+        createdAt: true,
+        branch: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      }
+    });
+
+    res.json(user);
   } catch (err) {
+    console.error('Error in updateUser:', err);
     res.status(500).json({ message: "Error updating user", error: err.message });
   }
 };
 
-// 🟢 Delete a user (admin only)
+// 🟢 Delete user
 export const deleteUser = async (req, res) => {
   try {
-    await prisma.user.delete({ where: { id: req.params.id } });
+    const user = await prisma.user.findUnique({
+      where: { id: req.params.id },
+      include: {
+        _count: {
+          select: {
+            transactions: true
+          }
+        }
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Check if user has transactions
+    if (user._count.transactions > 0) {
+      return res.status(400).json({
+        message: "Cannot delete user with existing transactions",
+        details: {
+          transactionCount: user._count.transactions
+        }
+      });
+    }
+
+    await prisma.user.delete({
+      where: { id: req.params.id }
+    });
+
     res.json({ message: "User deleted successfully" });
   } catch (err) {
+    console.error('Error in deleteUser:', err);
     res.status(500).json({ message: "Error deleting user", error: err.message });
+  }
+};
+
+// 🆕 Get users by branch
+export const getUsersByBranch = async (req, res) => {
+  try {
+    const branchId = req.params.branchId;
+    const { role } = req.query;
+
+    const where = {
+      branchId,
+      ...(role && { role: role.toUpperCase() })
+    };
+
+    const users = await prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        phone: true,
+        role: true,
+        createdAt: true,
+        _count: {
+          select: {
+            transactions: true
+          }
+        }
+      },
+      orderBy: { name: 'asc' }
+    });
+
+    res.json({ users, count: users.length });
+  } catch (err) {
+    console.error('Error in getUsersByBranch:', err);
+    res.status(500).json({ message: "Error fetching branch users", error: err.message });
+  }
+};
+
+// 🆕 Get users by role
+export const getUsersByRole = async (req, res) => {
+  try {
+    const role = req.params.role.toUpperCase();
+
+    if (!isValidRole(role)) {
+      return res.status(400).json({
+        message: `Invalid role. Must be one of: ${VALID_ROLES.join(', ')}`
+      });
+    }
+
+    const users = await prisma.user.findMany({
+      where: { role },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        phone: true,
+        branchId: true,
+        createdAt: true,
+        branch: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      },
+      orderBy: { name: 'asc' }
+    });
+
+    res.json({ role, users, count: users.length });
+  } catch (err) {
+    console.error('Error in getUsersByRole:', err);
+    res.status(500).json({ message: "Error fetching users by role", error: err.message });
+  }
+};
+
+// 🆕 Get user statistics
+export const getUserStats = async (req, res) => {
+  try {
+    const userId = req.params.userId;
+
+    const [user, transactionStats] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          createdAt: true,
+          branch: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        }
+      }),
+      prisma.transaction.aggregate({
+        where: {
+          cashierId: userId,
+          status: { in: ['COMPLETED', 'PARTIALLY_REFUNDED', 'REFUNDED'] }
+        },
+        _count: true,
+        _sum: {
+          totalGross: true,
+          refundedAmount: true
+        },
+        _avg: {
+          totalGross: true
+        }
+      })
+    ]);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const todayTransactions = await prisma.transaction.count({
+      where: {
+        cashierId: userId,
+        createdAt: { gte: today },
+        status: { in: ['COMPLETED', 'PARTIALLY_REFUNDED', 'REFUNDED'] }
+      }
+    });
+
+    res.json({
+      user,
+      stats: {
+        totalTransactions: transactionStats._count,
+        totalSalesAmount: transactionStats._sum.totalGross || 0,
+        totalRefunded: transactionStats._sum.refundedAmount || 0,
+        averageTransaction: transactionStats._avg.totalGross || 0,
+        todayTransactions
+      }
+    });
+  } catch (err) {
+    console.error('Error in getUserStats:', err);
+    res.status(500).json({ message: "Error fetching user statistics", error: err.message });
+  }
+};
+
+// 🆕 Change password
+export const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        message: "Current password and new password are required"
+      });
+    }
+
+    // Validate new password strength
+    if (!isValidPassword(newPassword)) {
+      return res.status(400).json({
+        message: "New password must be at least 8 characters with uppercase, lowercase, and number"
+      });
+    }
+
+    // Get user with password
+    const user = await prisma.user.findUnique({
+      where: { id: req.params.id }
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Verify current password
+    const passwordMatches = await bcrypt.compare(currentPassword, user.password);
+
+if (!passwordMatches) {
+  return res.status(401).json({
+    message: "Current password is incorrect"
+  });
+}
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
+
+    // Update password
+    await prisma.user.update({
+      where: { id: req.params.id },
+      data: { password: hashedPassword }
+    });
+
+    res.json({ message: "Password changed successfully" });
+  } catch (err) {
+    console.error('Error in changePassword:', err);
+    res.status(500).json({ message: "Error changing password", error: err.message });
+  }
+};
+
+// 🆕 Reset password (admin only)
+export const resetPassword = async (req, res) => {
+  try {
+    const { newPassword } = req.body;
+
+    if (!newPassword) {
+      return res.status(400).json({
+        message: "New password is required"
+      });
+    }
+
+    // Validate password strength
+    if (!isValidPassword(newPassword)) {
+      return res.status(400).json({
+        message: "Password must be at least 8 characters with uppercase, lowercase, and number"
+      });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.params.id }
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
+
+    // Update password
+    await prisma.user.update({
+      where: { id: req.params.id },
+      data: { password: hashedPassword }
+    });
+
+    res.json({ message: "Password reset successfully" });
+  } catch (err) {
+    console.error('Error in resetPassword:', err);
+    res.status(500).json({ message: "Error resetting password", error: err.message });
+  }
+};
+
+// 🆕 Get users summary
+// 🆕 Get users summary
+export const getUsersSummary = async (req, res) => {
+  try {
+    const [totalUsers, byRole, byBranch] = await Promise.all([
+      prisma.user.count(),
+      prisma.user.groupBy({
+        by: ['role'],
+        _count: true
+      }),
+      prisma.user.groupBy({
+        by: ['branchId'],
+        _count: true
+      })
+    ]);
+
+    const usersWithoutBranch = byBranch.find(b => b.branchId === null)?._count || 0;
+    const usersWithBranch = totalUsers - usersWithoutBranch;
+
+    res.json({
+      summary: {
+        totalUsers
+      },
+      byRole: byRole.map(r => ({
+        role: r.role,
+        count: r._count
+      })),
+      byBranch: {
+        withBranch: usersWithBranch,
+        withoutBranch: usersWithoutBranch
+      }
+    });
+  } catch (err) {
+    console.error('Error in getUsersSummary:', err);
+    res.status(500).json({ message: "Error fetching users summary", error: err.message });
+  }
+};
+
+
+// 🆕 Validate user email
+export const validateEmail = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        message: "Email is required"
+      });
+    }
+
+    if (!isValidEmail(email)) {
+      return res.json({
+        valid: false,
+        message: "Invalid email format"
+      });
+    }
+
+    const existingUser = await prisma.user.findUnique({
+      where: { email }
+    });
+
+    if (existingUser) {
+      return res.json({
+        valid: false,
+        message: "Email exists"
+      });
+    }
+
+    res.json({
+      valid: true,
+      message: "Email is available"
+    });
+  } catch (err) {
+    console.error('Error in validateEmail:', err);
+    res.status(500).json({ message: "Error validating email", error: err.message });
   }
 };

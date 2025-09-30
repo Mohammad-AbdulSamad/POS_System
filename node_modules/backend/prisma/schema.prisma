@@ -205,6 +205,28 @@ enum PromotionType {
   BUY_X_GET_Y // e.g., Buy 2 Get 1 Free
 }
 
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model TokenBlacklist {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
+
 model User {
   id           String        @id @default(uuid())
   branchId     String?
@@ -216,6 +238,7 @@ model User {
   role         Role          @default(CASHIER)
   createdAt    DateTime      @default(now())
   transactions Transaction[] @relation("UserTransactions")
+   refreshTokens RefreshToken[]
 }
 
 model Return {

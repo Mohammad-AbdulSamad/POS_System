@@ -1,18 +1,23 @@
-import express from "express";
-import { authenticate, authorize } from "../middleware/auth.middleware.js";
-import { getUsers, getUser, createUser, updateUser, deleteUser } from "../controllers/user.controller.js";
+// routes/auth.routes.js
+import { Router } from 'express';
+import * as authController from '../controllers/auth.controller.js';
+import { authenticate } from '../middleware/auth.middleware.js';
 
-const router = express.Router();
+const router = Router();
 
-// Only ADMIN and MANAGER can list all users
-router.get("/", authenticate, authorize("ADMIN", "MANAGER"), getUsers);
+// Public routes (no authentication required)
+router.post('/login', authController.login);
+router.post('/refresh', authController.refresh);
 
-// Anyone authenticated can view their own user (or admin/manager can see others)
-router.get("/:id", authenticate, getUser);
+// Protected routes (authentication required)
+router.post('/logout', authenticate, authController.logout);
+router.post('/logout-all', authenticate, authController.logoutAll);
+router.get('/me', authenticate, authController.me);
+router.post('/verify', authenticate, authController.verifyToken);
+router.post('/change-password', authenticate, authController.changeMyPassword);
 
-// Only ADMIN can create/update/delete users
-router.post("/", authenticate, authorize("ADMIN"), createUser);
-router.put("/:id", authenticate, authorize("ADMIN"), updateUser);
-router.delete("/:id", authenticate, authorize("ADMIN"), deleteUser);
+// Session management
+router.get('/sessions', authenticate, authController.getActiveSessions);
+router.delete('/sessions/:sessionId', authenticate, authController.revokeSession);
 
 export default router;

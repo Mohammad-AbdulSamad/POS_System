@@ -1,9 +1,14 @@
 // tests/categories.test.js
 import request from 'supertest';
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcrypt';
 import app from '../server.js';
 
+
 const prisma = new PrismaClient();
+
+
+
 
 const createUniqueBranch = (overrides = {}) => ({
   name: `Test Branch ${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
@@ -31,9 +36,37 @@ const createUniqueProduct = (branchId, overrides = {}) => ({
   ...overrides
 });
 
+
+
 describe('Categories API - Production Ready', () => {
   let testBranchId;
   let testBranch2Id;
+
+
+
+  afterAll(async () => {
+    await prisma.refreshToken.deleteMany({
+      where: {
+        userId: {
+          in: [adminUser.id, managerUser.id, cashierUser.id]
+        }
+      }
+    });
+    await prisma.tokenBlacklist.deleteMany();
+    await prisma.user.deleteMany({
+      where: {
+        id: {
+          in: [adminUser.id, managerUser.id, cashierUser.id]
+        }
+      }
+    });
+    await prisma.branch.delete({
+      where: { id: testBranch.id }
+    });
+    await prisma.$disconnect();
+  });
+
+
 
   beforeEach(async () => {
     // Clean database
@@ -62,7 +95,58 @@ describe('Categories API - Production Ready', () => {
       data: createUniqueBranch({ name: 'Secondary Branch' })
     });
     testBranch2Id = branch2.id;
+
+    const hashedPassword = await bcrypt.hash('TestPassword123', 10);
+
+    adminUser = await prisma.user.create({
+      data: {
+        email: 'admin@test.com',
+        name: 'Admin User',
+        password: hashedPassword,
+        role: 'ADMIN',
+        branchId: testBranchId
+      }
+    });
+
+    managerUser = await prisma.user.create({
+      data: {
+        email: 'manager@test.com',
+        name: 'Manager User',
+        password: hashedPassword,
+        role: 'MANAGER',
+        branchId: testBranchId
+      }
+    });
+
+    cashierUser = await prisma.user.create({
+      data: {
+        email: 'cashier@test.com',
+        name: 'Cashier User',
+        password: hashedPassword,
+        role: 'CASHIER',
+        branchId: testBranchId
+      }
+    });
+
+    // Login to get tokens
+    const adminLogin = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'admin@test.com', password: 'TestPassword123' });
+    adminToken = adminLogin.body.accessToken;
+
+    const managerLogin = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'manager@test.com', password: 'TestPassword123' });
+    managerToken = managerLogin.body.accessToken;
+
+    const cashierLogin = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'cashier@test.com', password: 'TestPassword123' });
+    cashierToken = cashierLogin.body.accessToken;
+
   });
+
+  
 
   describe('POST /categories', () => {
     it('should create a new category with valid data', async () => {
@@ -70,6 +154,7 @@ describe('Categories API - Production Ready', () => {
       
       const response = await request(app)
         .post('/api/categories')
+        .set('Authorization', `Bearer ${adminToken}`)
         .send(categoryData);
 
       expect(response.status).toBe(201);

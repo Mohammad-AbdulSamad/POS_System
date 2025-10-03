@@ -511,14 +511,24 @@ export const getUserStats = async (req, res) => {
   }
 };
 
-// 🆕 Change password
 export const changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
+    const targetUserId = req.params.id; // User whose password we're trying to change
+    const currentUserId = req.user.id;  // Authenticated user
 
     if (!currentPassword || !newPassword) {
       return res.status(400).json({
         message: "Current password and new password are required"
+      });
+    }
+
+    // Check ownership: only allow users to change their own password
+    // unless they're admin/manager (handled by middleware)
+    if (targetUserId !== currentUserId && !['ADMIN', 'MANAGER'].includes(req.user.role)) {
+      return res.status(403).json({
+        message: "Access denied",
+        error: "You can only change your own password"
       });
     }
 
@@ -531,7 +541,7 @@ export const changePassword = async (req, res) => {
 
     // Get user with password
     const user = await prisma.user.findUnique({
-      where: { id: req.params.id }
+      where: { id: targetUserId }
     });
 
     if (!user) {
@@ -541,28 +551,37 @@ export const changePassword = async (req, res) => {
     // Verify current password
     const passwordMatches = await bcrypt.compare(currentPassword, user.password);
 
-if (!passwordMatches) {
-  return res.status(401).json({
-    message: "Current password is incorrect"
-  });
-}
+    if (!passwordMatches) {
+      return res.status(401).json({
+        message: "Current password is incorrect"
+      });
+    }
 
     // Hash new password
-    const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     // Update password
     await prisma.user.update({
-      where: { id: req.params.id },
+      where: { id: targetUserId },
       data: { password: hashedPassword }
     });
 
-    res.json({ message: "Password changed successfully" });
-  } catch (err) {
-    console.error('Error in changePassword:', err);
-    res.status(500).json({ message: "Error changing password", error: err.message });
+    // Revoke all refresh tokens for this user (force re-login)
+    await prisma.refreshToken.deleteMany({
+      where: { userId: targetUserId }
+    });
+
+    res.json({
+      message: 'Password changed successfully. Please login again.'
+    });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({
+      message: 'Password change failed',
+      error: error.message
+    });
   }
 };
-
 // 🆕 Reset password (admin only)
 export const resetPassword = async (req, res) => {
   try {

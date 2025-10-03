@@ -1,22 +1,67 @@
-// routes/promotions.routes.js
+// routes/returns.routes.js
 import { Router } from "express";
-import * as promotionsController from "../controllers/promotions.controller.js";
+import * as returnsController from "../controllers/returns.controller.js";
+import { authenticate, requireRole } from "../middleware/auth.middleware.js";
 
 const router = Router();
 
+// All routes require authentication
+router.use(authenticate);
+
 // Basic CRUD operations
-router.get("/", promotionsController.getAllPromotions);
-router.get("/:id", promotionsController.getPromotionById);
-router.post("/", promotionsController.createPromotion);
-router.put("/:id", promotionsController.updatePromotion);
-router.delete("/:id", promotionsController.deletePromotion);
+// GET all returns - Admin and Manager only (financial sensitive data)
+router.get("/", 
+  requireRole(['ADMIN', 'MANAGER']), 
+  returnsController.getAllReturns
+);
 
-// Promotion-specific operations
-router.post("/calculate", promotionsController.calculateDiscount);
-router.get("/:id/products", promotionsController.getPromotionProducts);
+// GET return by ID - Admin, Manager, and Cashier (cashiers process returns)
+router.get("/:id", returnsController.getReturnById);
 
-// Product and category management
-router.post("/:id/assign-products", promotionsController.assignProductsToPromotion);
-router.post("/:id/assign-categories", promotionsController.assignCategoriesToPromotion);
+// CREATE return - All authenticated users (cashiers process returns)
+router.post("/", returnsController.createReturn);
+
+// UPDATE return - Admin and Manager only (modify return records)
+router.put("/:id", 
+  requireRole(['ADMIN', 'MANAGER']), 
+  returnsController.updateReturn
+);
+
+// DELETE return - Admin only (critical financial operation)
+router.delete("/:id", 
+  requireRole(['ADMIN']), 
+  returnsController.deleteReturn
+);
+
+// Transaction-specific operations
+// GET returns by transaction - All authenticated users
+router.get("/transaction/:transactionId", returnsController.getReturnsByTransaction);
+
+// PROCESS return - All authenticated users (cashiers process returns)
+router.post("/transaction/:transactionId/process", returnsController.processReturn);
+
+// Analytics & Reports - Admin and Manager only
+router.get("/analytics/summary", 
+  requireRole(['ADMIN', 'MANAGER']), 
+  returnsController.getReturnsSummary
+);
+
+router.get("/analytics/by-reason", 
+  requireRole(['ADMIN', 'MANAGER']), 
+  returnsController.getReturnsByReason
+);
+
+router.get("/analytics/by-period", 
+  requireRole(['ADMIN', 'MANAGER']), 
+  returnsController.getReturnsByPeriod
+);
+
+router.get("/analytics/trends", 
+  requireRole(['ADMIN', 'MANAGER']), 
+  returnsController.getReturnTrends
+);
+
+// Validation - All authenticated users (validate before processing)
+router.post("/validate", returnsController.validateReturn);
 
 export default router;

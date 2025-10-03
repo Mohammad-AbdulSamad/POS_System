@@ -28,8 +28,9 @@
     "test:taxRates": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js tests/taxRates.test.js",
     "test:promotions": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js tests/promotions.test.js",
     "test:returns": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js tests/returns.test.js",
-    "test:users": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js tests/users.test.js"
-   
+    "test:users": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js tests/users.test.js",
+    "test:auth": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js tests/auth.test.js",
+    "test:middleware": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js tests/middleware.test.js"
   },
   "keywords": [],
   "author": "",
@@ -50,6 +51,7 @@
     "@prisma/sdk": "^3.15.2",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2"
   }
 }

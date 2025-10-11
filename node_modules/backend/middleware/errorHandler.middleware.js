@@ -1,7 +1,7 @@
 // middleware/errorHandler.middleware.js
 import { Prisma } from '@prisma/client';
-import logger from '../config/logger.js';
-import { AppError, DatabaseError, TokenError, ValidationError } from '../utils/errors.js';
+import logger from '../config/logger.config.js';
+import { AppError, DatabaseError, TokenError, ValidationError } from '../utils/errors.utils.js';
 
 /**
  * Handle Prisma errors and convert to AppError

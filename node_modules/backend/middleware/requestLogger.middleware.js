@@ -1,6 +1,6 @@
 // middleware/requestLogger.middleware.js
 import morgan from 'morgan';
-import logger from '../config/logger.js';
+import logger from '../config/logger.config.js';
 import { v4 as uuidv4 } from 'uuid';
 
 /**

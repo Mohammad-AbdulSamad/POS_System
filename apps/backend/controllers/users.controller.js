@@ -1,6 +1,10 @@
 // controllers/users.controller.js
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
+import asyncHandler from "../middleware/asyncHandler.middleware.js";
+import { NotFoundError, BadRequestError, ConflictError } from "../utils/errors.utils.js";
+import logger from "../config/logger.config.js";
+
 
 const prisma = new PrismaClient();
 const SALT_ROUNDS = 10;

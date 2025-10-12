@@ -5,119 +5,134 @@ import logger from "../config/logger.config.js";
 
 const prisma = new PrismaClient();
 
-
-// 🟢 Get all products with pagination and filtering
-export const getAllProducts = async (req, res) => {
-  try {
-    const { 
-      page = 1, 
-      limit = 50, 
-      branchId, 
-      active, 
-      categoryId, 
-      search,
-      sortBy = 'name',
-      sortOrder = 'asc'
-    } = req.query;
-
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const take = parseInt(limit);
-
-    // Build where clause
-    const where = {};
-    if (branchId) where.branchId = branchId;
-    if (active !== undefined) where.active = active === 'true';
-    if (categoryId) where.categoryId = categoryId;
-    if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { sku: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } }
-      ];
-    }
-
-    const [products, total] = await Promise.all([
-      prisma.product.findMany({
-        where,
-        select: {
-          id: true,
-          sku: true,
-          name: true,
-          priceGross: true,
-          cost: true,
-          stock: true,
-          unit: true,
-          active: true,
-          branchId: true,
-          categoryId: true,
-          category: { select: { name: true } }
-        },
-        orderBy: { [sortBy]: sortOrder },
-        skip,
-        take
-      }),
-      prisma.product.count({ where })
-    ]);
-
-    res.json({
-      products,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit))
-      }
-    });
-  } catch (err) {
-    res.status(500).json({ message: "Error fetching products", error: err.message });
-  }
+// Helper: parse ints safely
+const toInt = (v, fallback = 0) => {
+  const n = parseInt(v);
+  return Number.isNaN(n) ? fallback : n;
 };
+
+
+export const getAllProducts = asyncHandler(async (req, res) => {
+  const {
+    page = 1,
+    limit = 50,
+    branchId,
+    active,
+    categoryId,
+    search,
+    sortBy = "name",
+    sortOrder = "asc"
+  } = req.query;
+
+  const skip = (toInt(page, 1) - 1) * toInt(limit, 50);
+  const take = toInt(limit, 50);
+
+  const where = {};
+  if (branchId) where.branchId = branchId;
+  if (active !== undefined) where.active = active === "true";
+  if (categoryId) where.categoryId = categoryId;
+  if (search) {
+    where.OR = [
+      { name: { contains: search, mode: "insensitive" } },
+      { sku: { contains: search, mode: "insensitive" } },
+      { description: { contains: search, mode: "insensitive" } }
+    ];
+  }
+
+  const validSort = sortBy ? { [sortBy]: sortOrder === "desc" ? "desc" : "asc" } : { name: "asc" };
+
+  const [products, total] = await Promise.all([
+    prisma.product.findMany({
+      where,
+      select: {
+        id: true,
+        sku: true,
+        name: true,
+        priceGross: true,
+        cost: true,
+        stock: true,
+        unit: true,
+        active: true,
+        branchId: true,
+        categoryId: true,
+        category: { select: { name: true } }
+      },
+      orderBy: validSort,
+      skip,
+      take
+    }),
+    prisma.product.count({ where })
+  ]);
+
+  logger.logDatabase("READ", {
+    model: "Product",
+    operation: "getAllProducts",
+    count: products.length,
+    filters: { branchId, active, categoryId, search },
+    userId: req.user?.id
+  });
+
+  res.json({
+    products,
+    pagination: {
+      page: toInt(page, 1),
+      limit: toInt(limit, 50),
+      total,
+      pages: Math.ceil(total / toInt(limit, 50))
+    }
+  });
+});
 
 // 🟢 Get product by ID
-export const getProductById = async (req, res) => {
-  try {
-    const product = await prisma.product.findUnique({
-      where: { id: req.params.id },
-      include: { 
-        category: true, 
-        supplier: true, 
-        taxRate: true,
-        branch: { select: { name: true } }
-      }
-    });
-    if (!product) return res.status(404).json({ message: "Product not found" });
-    res.json(product);
-  } catch (err) {
-    res.status(500).json({ message: "Error fetching product", error: err.message });
-  }
-};
+export const getProductById = asyncHandler(async (req, res) => {
+  const product = await prisma.product.findUnique({
+    where: { id: req.params.id },
+    include: {
+      category: true,
+      supplier: true,
+      taxRate: true,
+      // priceGross: true,
+      // cost: true,
+      // stock: true,
+      branch: { select: { name: true } }
+    }
+  });
+
+  if (!product) throw new NotFoundError("Product not found");
+
+  logger.logDatabase("READ", {
+    model: "Product",
+    operation: "getProductById",
+    id: req.params.id,
+    userId: req.user?.id
+  });
+
+  res.json(product);
+});
 
 // 🟢 Create product
-export const createProduct = async (req, res) => {
+export const createProduct = asyncHandler(async (req, res) => {
+  const {
+    branchId,
+    sku,
+    name,
+    description,
+    priceGross,
+    cost,
+    unit,
+    stock = 0,
+    categoryId,
+    supplierId,
+    taxRateId,
+    active = true,
+    metadata
+  } = req.body;
+
+  if (!branchId || !sku || !name || priceGross === undefined) {
+    throw new BadRequestError("Missing required fields: branchId, sku, name, priceGross");
+  }
+
   try {
-    const {
-      branchId,
-      sku,
-      name,
-      description,
-      priceGross,
-      cost,
-      unit,
-      stock = 0,
-      categoryId,
-      supplierId,
-      taxRateId,
-      active = true,
-      metadata
-    } = req.body;
-
-    // Validation
-    if (!branchId || !sku || !name || !priceGross) {
-      return res.status(400).json({ 
-        message: "Missing required fields: branchId, sku, name, priceGross" 
-      });
-    }
-
     const newProduct = await prisma.product.create({
       data: {
         branchId,
@@ -125,9 +140,9 @@ export const createProduct = async (req, res) => {
         name,
         description,
         priceGross: parseFloat(priceGross),
-        cost: parseFloat(cost),
+        cost: cost !== undefined ? parseFloat(cost) : null,
         unit,
-        stock: parseInt(stock),
+        stock: toInt(stock, 0),
         categoryId,
         supplierId,
         taxRateId,
@@ -141,39 +156,56 @@ export const createProduct = async (req, res) => {
       }
     });
 
-    // Create initial stock movement record
-    if (stock > 0) {
+    // Create initial stock movement record if initial stock > 0
+    if (toInt(stock, 0) > 0) {
       await prisma.stockMovement.create({
         data: {
           productId: newProduct.id,
-          branchId: branchId,
-          change: parseInt(stock),
+          branchId,
+          change: toInt(stock, 0),
           reason: "initial_stock"
         }
       });
+
+      logger.info({
+        message: "Initial stock recorded for new product",
+        productId: newProduct.id,
+        stock: toInt(stock, 0),
+        branchId,
+        userId: req.user?.id
+      });
     }
+
+    logger.info({
+      message: "Product created",
+      productId: newProduct.id,
+      sku: newProduct.sku,
+      name: newProduct.name,
+      branchId,
+      userId: req.user?.id,
+      userEmail: req.user?.email
+    });
 
     res.status(201).json(newProduct);
   } catch (err) {
-    if (err.code === 'P2002') {
-      return res.status(400).json({ 
-        message: "Product with this SKU already exists in this branch" 
-      });
+    // Unique constraint violation (sku per branch)
+    if (err?.code === "P2002") {
+      throw new ConflictError("Product with this SKU already exists in this branch");
     }
-    res.status(500).json({ message: "Error creating product", error: err.message });
+    // Re-throw for global error handler
+    throw err;
   }
-};
+});
 
 // 🟢 Update product
-export const updateProduct = async (req, res) => {
-  try {
-    const updateData = { ...req.body };
-    
-    // Convert numeric fields
-    if (updateData.priceGross) updateData.priceGross = parseFloat(updateData.priceGross);
-    if (updateData.cost) updateData.cost = parseFloat(updateData.cost);
-    if (updateData.stock !== undefined) updateData.stock = parseInt(updateData.stock);
+export const updateProduct = asyncHandler(async (req, res) => {
+  const updateData = { ...req.body };
 
+  if (updateData.priceGross !== undefined) updateData.priceGross = parseFloat(updateData.priceGross);
+  if (updateData.cost !== undefined) updateData.cost = parseFloat(updateData.cost);
+  if (updateData.stock !== undefined) updateData.stock = toInt(updateData.stock);
+
+  try {
     const updatedProduct = await prisma.product.update({
       where: { id: req.params.id },
       data: updateData,
@@ -184,327 +216,372 @@ export const updateProduct = async (req, res) => {
       }
     });
 
+    logger.info({
+      message: "Product updated",
+      productId: updatedProduct.id,
+      changes: updateData,
+      userId: req.user?.id,
+      userEmail: req.user?.email
+    });
+
     res.json(updatedProduct);
   } catch (err) {
-    if (err.code === 'P2025') {
-      return res.status(404).json({ message: "Product not found" });
+    if (err?.code === "P2025") {
+      throw new NotFoundError("Product not found");
     }
-    res.status(500).json({ message: "Error updating product", error: err.message });
+    if (err?.code === "P2002") {
+      throw new ConflictError("Update conflict: SKU already exists in this branch");
+    }
+    throw err;
   }
-};
+});
 
 // 🟢 Delete product (soft delete by setting active = false)
-export const deleteProduct = async (req, res) => {
+export const deleteProduct = asyncHandler(async (req, res) => {
   try {
     const product = await prisma.product.update({
       where: { id: req.params.id },
-      data: { active: false }
+      data: { active: false },
+      select: { id: true, name: true, sku: true }
     });
+
+    logger.warn({
+      message: "Product deactivated (soft delete)",
+      productId: product.id,
+      productName: product.name,
+      sku: product.sku,
+      userId: req.user?.id,
+      userEmail: req.user?.email
+    });
+
     res.json({ message: "Product deactivated successfully", product });
   } catch (err) {
-    if (err.code === 'P2025') {
-      return res.status(404).json({ message: "Product not found" });
+    if (err?.code === "P2025") {
+      throw new NotFoundError("Product not found");
     }
-    res.status(500).json({ message: "Error deleting product", error: err.message });
+    throw err;
   }
-};
+});
 
 // 🟢 Get products by branch
-export const getProductsByBranch = async (req, res) => {
-  try {
-    const { active = 'true' } = req.query;
-    
-    const products = await prisma.product.findMany({
-      where: { 
-        branchId: req.params.branchId,
-        active: active === 'true'
-      },
-      select: { 
-        id: true, 
-        sku: true, 
-        name: true, 
-        priceGross: true,
-        stock: true, 
-        unit: true,
-        active: true,
-        category: { select: { name: true } }
-      },
-      orderBy: { name: 'asc' }
-    });
-    res.json(products);
-  } catch (err) {
-    res.status(500).json({ message: "Error fetching branch products", error: err.message });
-  }
-};
+export const getProductsByBranch = asyncHandler(async (req, res) => {
+  const { active = "true" } = req.query;
+  const products = await prisma.product.findMany({
+    where: {
+      branchId: req.params.branchId,
+      active: active === "true"
+    },
+    select: {
+      id: true,
+      sku: true,
+      name: true,
+      priceGross: true,
+      stock: true,
+      unit: true,
+      active: true,
+      category: { select: { name: true } }
+    },
+    orderBy: { name: "asc" }
+  });
+
+  logger.logDatabase("READ", {
+    model: "Product",
+    operation: "getProductsByBranch",
+    branchId: req.params.branchId,
+    count: products.length,
+    userId: req.user?.id
+  });
+
+  res.json(products);
+});
 
 // 🟢 Get products by category
-export const getProductsByCategory = async (req, res) => {
-  try {
-    const products = await prisma.product.findMany({
-      where: { 
-        categoryId: req.params.categoryId,
-        active: true
-      },
-      select: { 
-        id: true, 
-        sku: true, 
-        name: true, 
-        priceGross: true,
-        stock: true, 
-        unit: true,
-        active: true 
-      },
-      orderBy: { name: 'asc' }
-    });
-    res.json(products);
-  } catch (err) {
-    res.status(500).json({ message: "Error fetching category products", error: err.message });
-  }
-};
+export const getProductsByCategory = asyncHandler(async (req, res) => {
+  const products = await prisma.product.findMany({
+    where: { categoryId: req.params.categoryId, active: true },
+    select: {
+      id: true,
+      sku: true,
+      name: true,
+      priceGross: true,
+      stock: true,
+      unit: true,
+      active: true
+    },
+    orderBy: { name: "asc" }
+  });
+
+  logger.logDatabase("READ", {
+    model: "Product",
+    operation: "getProductsByCategory",
+    categoryId: req.params.categoryId,
+    count: products.length,
+    userId: req.user?.id
+  });
+
+  res.json(products);
+});
+
 
 // 🆕 CRITICAL: Search by barcode/SKU (most important for POS)
-export const getProductByBarcode = async (req, res) => {
-  try {
-    const { barcode } = req.params;
-    const { branchId } = req.query;
+export const getProductByBarcode = asyncHandler(async (req, res) => {
+  const { barcode } = req.params;
+  const { branchId } = req.query;
 
-    const where = {
-      sku: barcode,
-      active: true
-    };
-    if (branchId) where.branchId = branchId;
+  const where = {
+    sku: barcode,
+    active: true
+  };
+  if (branchId) where.branchId = branchId;
 
-    const product = await prisma.product.findFirst({
-      where,
-      include: {
-        category: { select: { name: true } },
-        taxRate: { select: { rate: true } },
-        branch: { select: { name: true } }
-      }
-    });
-
-    if (!product) {
-      return res.status(404).json({ message: "Product not found" });
+  const product = await prisma.product.findFirst({
+    where,
+    include: {
+      category: { select: { name: true } },
+      taxRate: { select: { rate: true } },
+      branch: { select: { name: true } }
     }
+  });
 
-    res.json(product);
-  } catch (err) {
-    res.status(500).json({ message: "Error finding product by barcode", error: err.message });
-  }
-};
+  if (!product) throw new NotFoundError("Product not found");
+
+  logger.logDatabase("READ", {
+    model: "Product",
+    operation: "getProductByBarcode",
+    barcode,
+    branchId,
+    productId: product.id,
+    userId: req.user?.id
+  });
+
+  res.json(product);
+});
 
 // 🆕 Search by SKU with branch
-export const getProductBySku = async (req, res) => {
-  try {
-    const { branchId, sku } = req.params;
+export const getProductBySku = asyncHandler(async (req, res) => {
+  const { branchId, sku } = req.params;
 
-    const product = await prisma.product.findUnique({
-      where: {
-        branchId_sku: {
-          branchId,
-          sku
-        }
-      },
-      include: {
-        category: { select: { name: true } },
-        taxRate: { select: { rate: true } }
+  const product = await prisma.product.findUnique({
+    where: {
+      branchId_sku: {
+        branchId,
+        sku
       }
-    });
-
-    if (!product) {
-      return res.status(404).json({ message: "Product not found" });
+    },
+    include: {
+      category: { select: { name: true } },
+      taxRate: { select: { rate: true } }
     }
+  });
 
-    res.json(product);
-  } catch (err) {
-    res.status(500).json({ message: "Error finding product by SKU", error: err.message });
-  }
-};
+  if (!product) throw new NotFoundError("Product not found");
+
+  logger.logDatabase("READ", {
+    model: "Product",
+    operation: "getProductBySku",
+    branchId,
+    sku,
+    productId: product.id,
+    userId: req.user?.id
+  });
+
+  res.json(product);
+});
 
 // 🆕 Search products by name (autocomplete)
-export const searchProductsByName = async (req, res) => {
-  try {
-    const { q, branchId, limit = 10 } = req.query;
+export const searchProductsByName = asyncHandler(async (req, res) => {
+  const { q, branchId, limit = 10 } = req.query;
 
-    if (!q || q.length < 2) {
-      return res.status(400).json({ message: "Search query must be at least 2 characters" });
-    }
-
-    const where = {
-      active: true,
-      OR: [
-        { name: { contains: q, mode: 'insensitive' } },
-        { description: { contains: q, mode: 'insensitive' } }
-      ]
-    };
-    if (branchId) where.branchId = branchId;
-
-    const products = await prisma.product.findMany({
-      where,
-      select: {
-        id: true,
-        sku: true,
-        name: true,
-        description: true,
-        priceGross: true,
-        stock: true,
-        unit: true,
-        category: { select: { name: true } }
-      },
-      orderBy: { name: 'asc' },
-      take: parseInt(limit)
-    });
-
-    res.json(products);
-  } catch (err) {
-    res.status(500).json({ message: "Error searching products", error: err.message });
+  if (!q || q.trim().length < 2) {
+    throw new BadRequestError("Search query must be at least 2 characters");
   }
-};
+
+  const where = {
+    active: true,
+    OR: [
+      { name: { contains: q.trim(), mode: "insensitive" } },
+      { description: { contains: q.trim(), mode: "insensitive" } }
+    ]
+  };
+  if (branchId) where.branchId = branchId;
+
+  const products = await prisma.product.findMany({
+    where,
+    select: {
+      id: true,
+      sku: true,
+      name: true,
+      description: true,
+      priceGross: true,
+      stock: true,
+      unit: true,
+      category: { select: { name: true } }
+    },
+    orderBy: { name: "asc" },
+    take: toInt(limit, 10)
+  });
+
+  logger.logDatabase("READ", {
+    model: "Product",
+    operation: "searchProductsByName",
+    query: q,
+    count: products.length,
+    userId: req.user?.id
+  });
+
+  res.json(products);
+});
+
 
 // 🆕 Get low stock products
-export const getLowStockProducts = async (req, res) => {
-  try {
-    const { branchId } = req.params;
-    const { threshold = 10 } = req.query;
+export const getLowStockProducts = asyncHandler(async (req, res) => {
+  const { branchId } = req.params;
+  const { threshold = 10 } = req.query;
 
-    const products = await prisma.product.findMany({
-      where: {
-        branchId,
-        active: true,
-        stock: {
-          lte: parseInt(threshold)
-        }
-      },
-      select: {
-        id: true,
-        sku: true,
-        name: true,
-        stock: true,
-        unit: true,
-        category: { select: { name: true } },
-        supplier: { select: { name: true } }
-      },
-      orderBy: { stock: 'asc' }
-    });
+  const products = await prisma.product.findMany({
+    where: {
+      branchId,
+      active: true,
+      stock: { lte: toInt(threshold, 10) }
+    },
+    select: {
+      id: true,
+      sku: true,
+      name: true,
+      stock: true,
+      unit: true,
+      category: { select: { name: true } },
+      supplier: { select: { name: true } }
+    },
+    orderBy: { stock: "asc" }
+  });
 
-    res.json(products);
-  } catch (err) {
-    res.status(500).json({ message: "Error fetching low stock products", error: err.message });
-  }
-};
+  logger.logDatabase("READ", {
+    model: "Product",
+    operation: "getLowStockProducts",
+    branchId,
+    threshold: toInt(threshold, 10),
+    count: products.length,
+    userId: req.user?.id
+  });
+
+  res.json(products);
+});
 
 // 🆕 Get out of stock products
-export const getOutOfStockProducts = async (req, res) => {
-  try {
-    const { branchId } = req.params;
+export const getOutOfStockProducts = asyncHandler(async (req, res) => {
+  const { branchId } = req.params;
 
-    const products = await prisma.product.findMany({
-      where: {
-        branchId,
-        active: true,
-        stock: 0
-      },
-      select: {
-        id: true,
-        sku: true,
-        name: true,
-        unit: true,
-        category: { select: { name: true } },
-        supplier: { select: { name: true } }
-      },
-      orderBy: { name: 'asc' }
-    });
+  const products = await prisma.product.findMany({
+    where: { branchId, active: true, stock: 0 },
+    select: {
+      id: true,
+      sku: true,
+      name: true,
+      unit: true,
+      category: { select: { name: true } },
+      supplier: { select: { name: true } }
+    },
+    orderBy: { name: "asc" }
+  });
 
-    res.json(products);
-  } catch (err) {
-    res.status(500).json({ message: "Error fetching out of stock products", error: err.message });
-  }
-};
+  logger.logDatabase("READ", {
+    model: "Product",
+    operation: "getOutOfStockProducts",
+    branchId,
+    count: products.length,
+    userId: req.user?.id
+  });
 
+  res.json(products);
+});
 // 🆕 Update stock with movement tracking
-export const updateStock = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { change, reason = "manual_adjustment" } = req.body;
+export const updateStock = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { change, reason = "manual_adjustment" } = req.body;
 
-    if (!change) {
-      return res.status(400).json({ message: "Stock change amount is required" });
-    }
-
-    // Get current product
-    const currentProduct = await prisma.product.findUnique({
-      where: { id },
-      select: { stock: true, branchId: true, name: true }
-    });
-
-    if (!currentProduct) {
-      return res.status(404).json({ message: "Product not found" });
-    }
-
-    const newStock = currentProduct.stock + parseInt(change);
-    
-    if (newStock < 0) {
-      return res.status(400).json({ 
-        message: "Insufficient stock. Current stock: " + currentProduct.stock 
-      });
-    }
-
-    // Update stock and create movement record in transaction
-    const [updatedProduct] = await prisma.$transaction([
-      prisma.product.update({
-        where: { id },
-        data: { stock: newStock },
-        include: {
-          category: { select: { name: true } }
-        }
-      }),
-      prisma.stockMovement.create({
-        data: {
-          productId: id,
-          branchId: currentProduct.branchId,
-          change: parseInt(change),
-          reason
-        }
-      })
-    ]);
-
-    res.json(updatedProduct);
-  } catch (err) {
-    res.status(500).json({ message: "Error updating stock", error: err.message });
+  if (change === undefined || change === null) {
+    throw new BadRequestError("Stock change amount is required");
   }
-};
+
+  const currentProduct = await prisma.product.findUnique({
+    where: { id },
+    select: { stock: true, branchId: true, name: true }
+  });
+
+  if (!currentProduct) throw new NotFoundError("Product not found");
+
+  const newStock = currentProduct.stock + toInt(change);
+
+  if (newStock < 0) {
+    throw new BadRequestError(`Insufficient stock. Current stock: ${currentProduct.stock}`);
+  }
+
+  const [updatedProduct] = await prisma.$transaction([
+    prisma.product.update({
+      where: { id },
+      data: { stock: newStock },
+      include: { category: { select: { name: true } } }
+    }),
+    prisma.stockMovement.create({
+      data: {
+        productId: id,
+        branchId: currentProduct.branchId,
+        change: toInt(change),
+        reason
+      }
+    })
+  ]);
+
+  logger.info({
+    message: "Stock updated",
+    productId: id,
+    productName: currentProduct.name,
+    change: toInt(change),
+    newStock,
+    reason,
+    userId: req.user?.id
+  });
+
+  res.json(updatedProduct);
+});
 
 // 🆕 Get stock movement history
-export const getStockHistory = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { limit = 50 } = req.query;
+export const getStockHistory = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { limit = 50 } = req.query;
 
-    const movements = await prisma.stockMovement.findMany({
-      where: { productId: id },
-      orderBy: { createdAt: 'desc' },
-      take: parseInt(limit),
-      include: {
-        product: { select: { name: true, sku: true } }
-      }
-    });
+  const movements = await prisma.stockMovement.findMany({
+    where: { productId: id },
+    orderBy: { createdAt: "desc" },
+    take: toInt(limit, 50),
+    include: {
+      product: { select: { name: true, sku: true } }
+    }
+  });
 
-    res.json(movements);
-  } catch (err) {
-    res.status(500).json({ message: "Error fetching stock history", error: err.message });
-  }
-};
+  logger.logDatabase("READ", {
+    model: "StockMovement",
+    operation: "getStockHistory",
+    productId: id,
+    count: movements.length,
+    userId: req.user?.id
+  });
+
+  res.json(movements);
+});
+
 
 // 🆕 Quick price update
-export const updatePrice = async (req, res) => {
+export const updatePrice = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { priceGross, cost } = req.body;
+
+  if (priceGross === undefined) {
+    throw new BadRequestError("Price is required");
+  }
+
   try {
-    const { id } = req.params;
-    const { priceGross, cost } = req.body;
-
-    if (!priceGross) {
-      return res.status(400).json({ message: "Price is required" });
-    }
-
     const updateData = { priceGross: parseFloat(priceGross) };
     if (cost !== undefined) updateData.cost = parseFloat(cost);
 
@@ -521,106 +598,114 @@ export const updatePrice = async (req, res) => {
       }
     });
 
+    logger.info({
+      message: "Product price updated",
+      productId: updatedProduct.id,
+      sku: updatedProduct.sku,
+      oldPrice: undefined, // old price not fetched here; if needed, fetch before update
+      newPrice: updatedProduct.priceGross,
+      userId: req.user?.id
+    });
+
     res.json(updatedProduct);
   } catch (err) {
-    if (err.code === 'P2025') {
-      return res.status(404).json({ message: "Product not found" });
-    }
-    res.status(500).json({ message: "Error updating price", error: err.message });
+    if (err?.code === "P2025") throw new NotFoundError("Product not found");
+    throw err;
   }
-};
+});
 
 // 🆕 Toggle product active status
-export const toggleProductActive = async (req, res) => {
-  try {
-    const { id } = req.params;
+export const toggleProductActive = asyncHandler(async (req, res) => {
+  const { id } = req.params;
 
-    const currentProduct = await prisma.product.findUnique({
-      where: { id },
-      select: { active: true, name: true }
-    });
+  const currentProduct = await prisma.product.findUnique({
+    where: { id },
+    select: { active: true, name: true, sku: true }
+  });
 
-    if (!currentProduct) {
-      return res.status(404).json({ message: "Product not found" });
+  if (!currentProduct) throw new NotFoundError("Product not found");
+
+  const updatedProduct = await prisma.product.update({
+    where: { id },
+    data: { active: !currentProduct.active },
+    select: {
+      id: true,
+      name: true,
+      active: true,
+      updatedAt: true
     }
+  });
 
-    const updatedProduct = await prisma.product.update({
-      where: { id },
-      data: { active: !currentProduct.active },
-      select: {
-        id: true,
-        name: true,
-        active: true,
-        updatedAt: true
-      }
-    });
+  logger.warn({
+    message: `Product ${updatedProduct.active ? "activated" : "deactivated"}`,
+    productId: updatedProduct.id,
+    sku: currentProduct.sku,
+    userId: req.user?.id,
+    userEmail: req.user?.email
+  });
 
-    res.json({
-      message: `Product ${updatedProduct.active ? 'activated' : 'deactivated'} successfully`,
-      product: updatedProduct
-    });
-  } catch (err) {
-    res.status(500).json({ message: "Error toggling product status", error: err.message });
-  }
-};
+  res.json({
+    message: `Product ${updatedProduct.active ? "activated" : "deactivated"} successfully`,
+    product: updatedProduct
+  });
+});
 
 // 🆕 Get inactive products
-export const getInactiveProducts = async (req, res) => {
-  try {
-    const { branchId } = req.params;
+export const getInactiveProducts = asyncHandler(async (req, res) => {
+  const { branchId } = req.params;
 
-    const products = await prisma.product.findMany({
-      where: {
-        branchId,
-        active: false
-      },
-      select: {
-        id: true,
-        sku: true,
-        name: true,
-        stock: true,
-        updatedAt: true,
-        category: { select: { name: true } }
-      },
-      orderBy: { updatedAt: 'desc' }
-    });
+  const products = await prisma.product.findMany({
+    where: { branchId, active: false },
+    select: {
+      id: true,
+      sku: true,
+      name: true,
+      stock: true,
+      updatedAt: true,
+      category: { select: { name: true } }
+    },
+    orderBy: { updatedAt: "desc" }
+  });
 
-    res.json(products);
-  } catch (err) {
-    res.status(500).json({ message: "Error fetching inactive products", error: err.message });
-  }
-};
+  logger.logDatabase("READ", {
+    model: "Product",
+    operation: "getInactiveProducts",
+    branchId,
+    count: products.length,
+    userId: req.user?.id
+  });
+
+  res.json(products);
+});
 
 // 🆕 Bulk update products
-export const bulkUpdateProducts = async (req, res) => {
-  try {
-    const { productIds, updateData } = req.body;
+export const bulkUpdateProducts = asyncHandler(async (req, res) => {
+  const { productIds, updateData } = req.body;
 
-    if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
-      return res.status(400).json({ message: "Product IDs array is required" });
-    }
-
-    // Convert numeric fields if present
-    const processedUpdateData = { ...updateData };
-    if (processedUpdateData.priceGross) {
-      processedUpdateData.priceGross = parseFloat(processedUpdateData.priceGross);
-    }
-    if (processedUpdateData.cost) {
-      processedUpdateData.cost = parseFloat(processedUpdateData.cost);
-    }
-
-    const updatedProducts = await prisma.product.updateMany({
-      where: {
-        id: { in: productIds }
-      },
-      data: processedUpdateData
-    });
-
-    res.json({
-      message: `Successfully updated ${updatedProducts.count} products`,
-      count: updatedProducts.count
-    });
-  } catch (err) {
-    res.status(500).json({ message: "Error bulk updating products", error: err.message });
+  if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
+    throw new BadRequestError("Product IDs array is required");
   }
-};
+
+  const processedUpdateData = { ...updateData };
+  if (processedUpdateData.priceGross !== undefined) processedUpdateData.priceGross = parseFloat(processedUpdateData.priceGross);
+  if (processedUpdateData.cost !== undefined) processedUpdateData.cost = parseFloat(processedUpdateData.cost);
+
+  const result = await prisma.product.updateMany({
+    where: { id: { in: productIds } },
+    data: processedUpdateData
+  });
+
+  logger.warn({
+    message: "Bulk product update executed",
+    updatedCount: result.count,
+    productIdsCount: productIds.length,
+    updateData: processedUpdateData,
+    userId: req.user?.id,
+    userEmail: req.user?.email
+  });
+
+  res.json({
+    message: `Successfully updated ${result.count} products`,
+    count: result.count
+  });
+});

@@ -1,5 +1,5 @@
-// CONTINUATION OF stockMovements.controller.js - REMAINING FUNCTIONS
-// controllers/stockMovements.controller.js - COMPLETE VERSION
+////////////////////////////////////////////////////////////////////////////////////////////////
+// controllers/stockMovements.controller.js - Updated with Error Handling & Logging
 import { PrismaClient } from "@prisma/client";
 import asyncHandler from "../middleware/asyncHandler.middleware.js";
 import { NotFoundError, BadRequestError, ConflictError } from "../utils/errors.utils.js";
@@ -26,83 +26,38 @@ const updateProductStock = async (productId, change) => {
   });
 };
 
-// 🟢 Get all stock movements with filtering and pagination
-export const getAllStockMovements = async (req, res) => {
-  try {
-    const { 
-      productId, 
-      branchId, 
-      reason, 
-      startDate, 
-      endDate,
-      changeType, // 'positive', 'negative', or 'all'
-      page = 1, 
-      limit = 100 
-    } = req.query;
-    
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    
-    const where = {
-      ...(productId && { productId }),
-      ...(branchId && { branchId }),
-      ...(reason && { reason: reason.toLowerCase() }),
-      ...(changeType === 'positive' && { change: { gt: 0 } }),
-      ...(changeType === 'negative' && { change: { lt: 0 } }),
-      ...(startDate && endDate && {
-        createdAt: {
-          gte: new Date(startDate),
-          lte: new Date(endDate)
-        }
-      })
-    };
-
-    const [movements, total] = await Promise.all([
-      prisma.stockMovement.findMany({
-        where,
-        include: {
-          product: {
-            select: {
-              id: true,
-              name: true,
-              sku: true,
-              unit: true,
-              stock: true
-            }
-          },
-          branch: {
-            select: {
-              id: true,
-              name: true
-            }
-          }
-        },
-        skip: parseInt(skip),
-        take: parseInt(limit),
-        orderBy: { createdAt: 'desc' }
-      }),
-      prisma.stockMovement.count({ where })
-    ]);
-
-    res.json({
-      movements,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit))
+// ✅ Get all stock movements with filtering and pagination
+export const getAllStockMovements = asyncHandler(async (req, res) => {
+  const { 
+    productId, 
+    branchId, 
+    reason, 
+    startDate, 
+    endDate,
+    changeType,
+    page = 1, 
+    limit = 100 
+  } = req.query;
+  
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+  
+  const where = {
+    ...(productId && { productId }),
+    ...(branchId && { branchId }),
+    ...(reason && { reason: reason.toLowerCase() }),
+    ...(changeType === 'positive' && { change: { gt: 0 } }),
+    ...(changeType === 'negative' && { change: { lt: 0 } }),
+    ...(startDate && endDate && {
+      createdAt: {
+        gte: new Date(startDate),
+        lte: new Date(endDate)
       }
-    });
-  } catch (err) {
-    console.error('Error in getAllStockMovements:', err);
-    res.status(500).json({ message: "Error fetching stock movements", error: err.message });
-  }
-};
+    })
+  };
 
-// 🟢 Get stock movement by ID
-export const getStockMovementById = async (req, res) => {
-  try {
-    const movement = await prisma.stockMovement.findUnique({
-      where: { id: req.params.id },
+  const [movements, total] = await Promise.all([
+    prisma.stockMovement.findMany({
+      where,
       include: {
         product: {
           select: {
@@ -110,516 +65,422 @@ export const getStockMovementById = async (req, res) => {
             name: true,
             sku: true,
             unit: true,
-            stock: true,
-            category: { select: { name: true } }
+            stock: true
           }
         },
         branch: {
           select: {
             id: true,
-            name: true,
-            address: true
+            name: true
           }
         }
-      }
-    });
-
-    if (!movement) return res.status(404).json({ message: "Stock movement not found" });
-    res.json(movement);
-  } catch (err) {
-    console.error('Error in getStockMovementById:', err);
-    res.status(500).json({ message: "Error fetching stock movement", error: err.message });
-  }
-};
-
-// 🟢 Create stock movement
-export const createStockMovement = async (req, res) => {
-  try {
-    const { productId, branchId, change, reason } = req.body;
-
-    // Validate required fields
-    if (!productId || !branchId || change === undefined || !reason) {
-      return res.status(400).json({ 
-        message: "productId, branchId, change, and reason are required" 
-      });
-    }
-
-    // Validate reason
-    if (!isValidReason(reason)) {
-      return res.status(400).json({ 
-        message: `Invalid reason. Must be one of: ${MOVEMENT_REASONS.join(', ')}` 
-      });
-    }
-
-    // Validate change is a number
-    if (isNaN(parseInt(change))) {
-      return res.status(400).json({ message: "change must be a valid number" });
-    }
-
-    // Validate product and branch exist
-    const [product, branch] = await Promise.all([
-      prisma.product.findUnique({ where: { id: productId } }),
-      prisma.branch.findUnique({ where: { id: branchId } })
-    ]);
-
-    if (!product) {
-      return res.status(404).json({ message: "Product not found" });
-    }
-
-    if (!branch) {
-      return res.status(404).json({ message: "Branch not found" });
-    }
-
-    // Check if negative movement would result in negative stock
-    const changeInt = parseInt(change);
-    if (changeInt < 0 && (product.stock + changeInt) < 0) {
-      return res.status(400).json({ 
-        message: `Insufficient stock. Current stock: ${product.stock}, Requested change: ${changeInt}` 
-      });
-    }
-
-    // Use transaction to ensure consistency
-    const result = await prisma.$transaction(async (tx) => {
-      // Create the stock movement
-      const movement = await tx.stockMovement.create({
-        data: {
-          productId,
-          branchId,
-          change: changeInt,
-          reason: reason.toLowerCase()
-        },
-        include: {
-          product: { select: { name: true, sku: true, unit: true } },
-          branch: { select: { name: true } }
-        }
-      });
-
-      // Update product stock
-      await tx.product.update({
-        where: { id: productId },
-        data: {
-          stock: {
-            increment: changeInt
-          },
-          updatedAt: new Date()
-        }
-      });
-
-      return movement;
-    });
-
-    res.status(201).json(result);
-  } catch (err) {
-    console.error('Error in createStockMovement:', err);
-    res.status(500).json({ message: "Error creating stock movement", error: err.message });
-  }
-};
-
-// 🟢 Update stock movement
-export const updateStockMovement = async (req, res) => {
-  try {
-    const { change, reason } = req.body;
-
-    // Check if movement exists
-    const existingMovement = await prisma.stockMovement.findUnique({
-      where: { id: req.params.id },
-      include: { product: true }
-    });
-
-    if (!existingMovement) {
-      return res.status(404).json({ message: "Stock movement not found" });
-    }
-
-    // Validate reason if provided
-    if (reason && !isValidReason(reason)) {
-      return res.status(400).json({ 
-        message: `Invalid reason. Must be one of: ${MOVEMENT_REASONS.join(', ')}` 
-      });
-    }
-
-    // If change is being updated, we need to adjust product stock
-    let stockAdjustment = 0;
-    if (change !== undefined) {
-      const newChange = parseInt(change);
-      if (isNaN(newChange)) {
-        return res.status(400).json({ message: "change must be a valid number" });
-      }
-      
-      stockAdjustment = newChange - existingMovement.change;
-      
-      // Check if the adjustment would result in negative stock
-      const currentStock = existingMovement.product.stock;
-      if ((currentStock + stockAdjustment) < 0) {
-        return res.status(400).json({ 
-          message: `Stock adjustment would result in negative stock. Current: ${currentStock}, Adjustment: ${stockAdjustment}` 
-        });
-      }
-    }
-
-    // Use transaction for consistency
-    const result = await prisma.$transaction(async (tx) => {
-      // Update the movement
-      const updatedMovement = await tx.stockMovement.update({
-        where: { id: req.params.id },
-        data: {
-          ...(change !== undefined && { change: parseInt(change) }),
-          ...(reason && { reason: reason.toLowerCase() })
-        },
-        include: {
-          product: { select: { name: true, sku: true, unit: true } },
-          branch: { select: { name: true } }
-        }
-      });
-
-      // Update product stock if change was modified
-      if (stockAdjustment !== 0) {
-        await tx.product.update({
-          where: { id: existingMovement.productId },
-          data: {
-            stock: {
-              increment: stockAdjustment
-            },
-            updatedAt: new Date()
-          }
-        });
-      }
-
-      return updatedMovement;
-    });
-
-    res.json(result);
-  } catch (err) {
-    console.error('Error in updateStockMovement:', err);
-    res.status(500).json({ message: "Error updating stock movement", error: err.message });
-  }
-};
-
-// 🟢 Delete stock movement
-export const deleteStockMovement = async (req, res) => {
-  try {
-    const movement = await prisma.stockMovement.findUnique({
-      where: { id: req.params.id },
-      include: { product: true }
-    });
-
-    if (!movement) {
-      return res.status(404).json({ message: "Stock movement not found" });
-    }
-
-    // Check if reversing the movement would result in negative stock
-    const reversalChange = -movement.change;
-    const currentStock = movement.product.stock;
-    if ((currentStock + reversalChange) < 0) {
-      return res.status(400).json({ 
-        message: `Cannot delete movement. Would result in negative stock. Current: ${currentStock}, Required reversal: ${reversalChange}` 
-      });
-    }
-
-    // Use transaction to ensure consistency
-    await prisma.$transaction(async (tx) => {
-      // Delete the movement
-      await tx.stockMovement.delete({
-        where: { id: req.params.id }
-      });
-
-      // Reverse the stock change
-      await tx.product.update({
-        where: { id: movement.productId },
-        data: {
-          stock: {
-            increment: reversalChange
-          },
-          updatedAt: new Date()
-        }
-      });
-    });
-
-    res.json({ message: "Stock movement deleted successfully" });
-  } catch (err) {
-    console.error('Error in deleteStockMovement:', err);
-    res.status(500).json({ message: "Error deleting stock movement", error: err.message });
-  }
-};
-
-// 🆕 Get movements by product
-export const getMovementsByProduct = async (req, res) => {
-  try {
-    const { startDate, endDate, reason, page = 1, limit = 100 } = req.query;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    const where = {
-      productId: req.params.productId,
-      ...(reason && { reason: reason.toLowerCase() }),
-      ...(startDate && endDate && {
-        createdAt: {
-          gte: new Date(startDate),
-          lte: new Date(endDate)
-        }
-      })
-    };
-
-    const [movements, total] = await Promise.all([
-      prisma.stockMovement.findMany({
-        where,
-        include: {
-          branch: { select: { name: true } }
-        },
-        skip: parseInt(skip),
-        take: parseInt(limit),
-        orderBy: { createdAt: 'desc' }
-      }),
-      prisma.stockMovement.count({ where })
-    ]);
-
-    res.json({
-      movements,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit))
-      }
-    });
-  } catch (err) {
-    console.error('Error in getMovementsByProduct:', err);
-    res.status(500).json({ message: "Error fetching product movements", error: err.message });
-  }
-};
-
-// 🆕 Get product stock history with running balance
-export const getProductStockHistory = async (req, res) => {
-  try {
-    const { startDate, endDate, limit = 100 } = req.query;
-    const productId = req.params.productId;
-
-    // Get product info
-    const product = await prisma.product.findUnique({
-      where: { id: productId },
-      select: { name: true, sku: true, unit: true, stock: true }
-    });
-
-    if (!product) {
-      return res.status(404).json({ message: "Product not found" });
-    }
-
-    const where = {
-      productId,
-      ...(startDate && endDate && {
-        createdAt: {
-          gte: new Date(startDate),
-          lte: new Date(endDate)
-        }
-      })
-    };
-
-    // Get movements in chronological order
-    const movements = await prisma.stockMovement.findMany({
-      where,
-      include: {
-        branch: { select: { name: true } }
       },
+      skip: parseInt(skip),
       take: parseInt(limit),
-      orderBy: { createdAt: 'asc' }
-    });
+      orderBy: { createdAt: 'desc' }
+    }),
+    prisma.stockMovement.count({ where })
+  ]);
 
-    // Calculate running balance
-    let runningBalance = product.stock;
-    
-    // Work backwards from current stock
-    const totalChange = movements.reduce((sum, m) => sum + m.change, 0);
-    const startingBalance = runningBalance - totalChange;
-    
-    runningBalance = startingBalance;
-    
-    const history = movements.map(movement => {
-      const balanceBefore = runningBalance;
-      runningBalance += movement.change;
-      
-      return {
-        ...movement,
-        balanceBefore,
-        balanceAfter: runningBalance
-      };
-    });
+  logger.logDatabase('READ', {
+    model: 'StockMovement',
+    count: movements.length,
+    userId: req.user?.id,
+    filters: { productId, branchId, reason, changeType }
+  });
 
-    res.json({
-      product,
-      currentStock: product.stock,
-      startingBalance,
-      history
-    });
-  } catch (err) {
-    console.error('Error in getProductStockHistory:', err);
-    res.status(500).json({ message: "Error fetching product stock history", error: err.message });
-  }
-};
+  res.json({
+    movements,
+    pagination: {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      total,
+      pages: Math.ceil(total / parseInt(limit))
+    }
+  });
+});
 
-// 🆕 Get current product stock
-export const getCurrentProductStock = async (req, res) => {
-  try {
-    const productId = req.params.productId;
-
-    const [product, movementSummary] = await Promise.all([
-      prisma.product.findUnique({
-        where: { id: productId },
+// ✅ Get stock movement by ID
+export const getStockMovementById = asyncHandler(async (req, res) => {
+  const movement = await prisma.stockMovement.findUnique({
+    where: { id: req.params.id },
+    include: {
+      product: {
         select: {
           id: true,
           name: true,
           sku: true,
           unit: true,
           stock: true,
-          minStock: true,
-          reorderPoint: true
+          category: { select: { name: true } }
         }
-      }),
-      prisma.stockMovement.groupBy({
-        by: ['reason'],
-        where: { productId },
-        _sum: { change: true },
-        _count: true
-      })
-    ]);
-
-    if (!product) {
-      return res.status(404).json({ message: "Product not found" });
+      },
+      branch: {
+        select: {
+          id: true,
+          name: true,
+          address: true
+        }
+      }
     }
+  });
 
-    const stockStatus = {
-      current: product.stock,
-      isLowStock: product.stock <= (product.reorderPoint || 10),
-      isOutOfStock: product.stock <= 0,
-      needsReorder: product.minStock ? product.stock <= product.minStock : false
-    };
-
-    res.json({
-      product,
-      stockStatus,
-      movementSummary
-    });
-  } catch (err) {
-    console.error('Error in getCurrentProductStock:', err);
-    res.status(500).json({ message: "Error fetching current product stock", error: err.message });
+  if (!movement) {
+    throw new NotFoundError('Stock movement not found');
   }
-};
 
-// 🆕 Get movements by branch
-export const getMovementsByBranch = async (req, res) => {
-  try {
-    const { startDate, endDate, reason, productId, page = 1, limit = 100 } = req.query;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+  logger.logDatabase('READ', {
+    model: 'StockMovement',
+    id: req.params.id,
+    userId: req.user?.id
+  });
 
-    const where = {
-      branchId: req.params.branchId,
-      ...(reason && { reason: reason.toLowerCase() }),
-      ...(productId && { productId }),
-      ...(startDate && endDate && {
-        createdAt: {
-          gte: new Date(startDate),
-          lte: new Date(endDate)
-        }
-      })
-    };
+  res.json(movement);
+});
 
-    const [movements, total] = await Promise.all([
-      prisma.stockMovement.findMany({
-        where,
-        include: {
-          product: {
-            select: {
-              id: true,
-              name: true,
-              sku: true,
-              unit: true
-            }
-          }
-        },
-        skip: parseInt(skip),
-        take: parseInt(limit),
-        orderBy: { createdAt: 'desc' }
-      }),
-      prisma.stockMovement.count({ where })
-    ]);
+// ✅ Create stock movement
+export const createStockMovement = asyncHandler(async (req, res) => {
+  const { productId, branchId, change, reason } = req.body;
 
-    res.json({
-      movements,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit))
+  // Validate required fields
+  if (!productId || !branchId || change === undefined || !reason) {
+    throw new BadRequestError('productId, branchId, change, and reason are required');
+  }
+
+  // Validate reason
+  if (!isValidReason(reason)) {
+    throw new BadRequestError(`Invalid reason. Must be one of: ${MOVEMENT_REASONS.join(', ')}`);
+  }
+
+  // Validate change is a number
+  if (isNaN(parseInt(change))) {
+    throw new BadRequestError('change must be a valid number');
+  }
+
+  // Validate product and branch exist
+  const [product, branch] = await Promise.all([
+    prisma.product.findUnique({ where: { id: productId } }),
+    prisma.branch.findUnique({ where: { id: branchId } })
+  ]);
+
+  if (!product) {
+    throw new NotFoundError('Product not found');
+  }
+
+  if (!branch) {
+    throw new NotFoundError('Branch not found');
+  }
+
+  // Check if negative movement would result in negative stock
+  const changeInt = parseInt(change);
+  if (changeInt < 0 && (product.stock + changeInt) < 0) {
+    throw new BadRequestError(
+      `Insufficient stock. Current stock: ${product.stock}, Requested change: ${changeInt}`
+    );
+  }
+
+  // Use transaction to ensure consistency
+  const result = await prisma.$transaction(async (tx) => {
+    // Create the stock movement
+    const movement = await tx.stockMovement.create({
+      data: {
+        productId,
+        branchId,
+        change: changeInt,
+        reason: reason.toLowerCase()
+      },
+      include: {
+        product: { select: { name: true, sku: true, unit: true } },
+        branch: { select: { name: true } }
       }
     });
-  } catch (err) {
-    console.error('Error in getMovementsByBranch:', err);
-    res.status(500).json({ message: "Error fetching branch movements", error: err.message });
-  }
-};
 
-// 🆕 Get branch stock summary
-export const getBranchStockSummary = async (req, res) => {
-  try {
-    const branchId = req.params.branchId;
-    const { startDate, endDate } = req.query;
-
-    const where = {
-      branchId,
-      ...(startDate && endDate && {
-        createdAt: {
-          gte: new Date(startDate),
-          lte: new Date(endDate)
-        }
-      })
-    };
-
-    const [totalMovements, movementsByReason, recentMovements] = await Promise.all([
-      prisma.stockMovement.count({ where }),
-      prisma.stockMovement.groupBy({
-        by: ['reason'],
-        where,
-        _sum: { change: true },
-        _count: true
-      }),
-      prisma.stockMovement.findMany({
-        where,
-        include: {
-          product: { select: { name: true, sku: true } }
+    // Update product stock
+    await tx.product.update({
+      where: { id: productId },
+      data: {
+        stock: {
+          increment: changeInt
         },
-        take: 10,
-        orderBy: { createdAt: 'desc' }
-      })
-    ]);
+        updatedAt: new Date()
+      }
+    });
 
-    const summary = {
-      totalMovements,
-      byReason: movementsByReason.reduce((acc, item) => {
-        acc[item.reason] = {
-          count: item._count,
-          totalChange: item._sum.change || 0
-        };
-        return acc;
-      }, {}),
-      recentMovements
-    };
+    return movement;
+  });
 
-    res.json(summary);
-  } catch (err) {
-    console.error('Error in getBranchStockSummary:', err);
-    res.status(500).json({ message: "Error fetching branch stock summary", error: err.message });
+  logger.info({
+    message: 'Stock movement created',
+    movementId: result.id,
+    productId,
+    productName: result.product.name,
+    branchId,
+    branchName: result.branch.name,
+    change: changeInt,
+    reason: reason.toLowerCase(),
+    userId: req.user?.id,
+    userEmail: req.user?.email
+  });
+
+  res.status(201).json(result);
+});
+
+// ✅ Update stock movement
+export const updateStockMovement = asyncHandler(async (req, res) => {
+  const { change, reason } = req.body;
+
+  // Check if movement exists
+  const existingMovement = await prisma.stockMovement.findUnique({
+    where: { id: req.params.id },
+    include: { product: true }
+  });
+
+  if (!existingMovement) {
+    throw new NotFoundError('Stock movement not found');
   }
-};
 
-// 🆕 Get low stock products for branch
-export const getLowStockProducts = async (req, res) => {
-  try {
-    const branchId = req.params.branchId;
-    const { threshold = 10 } = req.query;
+  // Validate reason if provided
+  if (reason && !isValidReason(reason)) {
+    throw new BadRequestError(`Invalid reason. Must be one of: ${MOVEMENT_REASONS.join(', ')}`);
+  }
 
-    const products = await prisma.product.findMany({
-      where: {
-        branchId,
-        active: true,
-        stock: { lte: parseInt(threshold) }
+  // If change is being updated, we need to adjust product stock
+  let stockAdjustment = 0;
+  if (change !== undefined) {
+    const newChange = parseInt(change);
+    if (isNaN(newChange)) {
+      throw new BadRequestError('change must be a valid number');
+    }
+    
+    stockAdjustment = newChange - existingMovement.change;
+    
+    // Check if the adjustment would result in negative stock
+    const currentStock = existingMovement.product.stock;
+    if ((currentStock + stockAdjustment) < 0) {
+      throw new BadRequestError(
+        `Stock adjustment would result in negative stock. Current: ${currentStock}, Adjustment: ${stockAdjustment}`
+      );
+    }
+  }
+
+  // Use transaction for consistency
+  const result = await prisma.$transaction(async (tx) => {
+    // Update the movement
+    const updatedMovement = await tx.stockMovement.update({
+      where: { id: req.params.id },
+      data: {
+        ...(change !== undefined && { change: parseInt(change) }),
+        ...(reason && { reason: reason.toLowerCase() })
       },
+      include: {
+        product: { select: { name: true, sku: true, unit: true } },
+        branch: { select: { name: true } }
+      }
+    });
+
+    // Update product stock if change was modified
+    if (stockAdjustment !== 0) {
+      await tx.product.update({
+        where: { id: existingMovement.productId },
+        data: {
+          stock: {
+            increment: stockAdjustment
+          },
+          updatedAt: new Date()
+        }
+      });
+    }
+
+    return updatedMovement;
+  });
+
+  logger.info({
+    message: 'Stock movement updated',
+    movementId: req.params.id,
+    stockAdjustment,
+    userId: req.user?.id,
+    changes: { change, reason }
+  });
+
+  res.json(result);
+});
+
+// ✅ Delete stock movement
+export const deleteStockMovement = asyncHandler(async (req, res) => {
+  const movement = await prisma.stockMovement.findUnique({
+    where: { id: req.params.id },
+    include: { product: true }
+  });
+
+  if (!movement) {
+    throw new NotFoundError('Stock movement not found');
+  }
+
+  // Check if reversing the movement would result in negative stock
+  const reversalChange = -movement.change;
+  const currentStock = movement.product.stock;
+  if ((currentStock + reversalChange) < 0) {
+    throw new BadRequestError(
+      `Cannot delete movement. Would result in negative stock. Current: ${currentStock}, Required reversal: ${reversalChange}`
+    );
+  }
+
+  // Use transaction to ensure consistency
+  await prisma.$transaction(async (tx) => {
+    // Delete the movement
+    await tx.stockMovement.delete({
+      where: { id: req.params.id }
+    });
+
+    // Reverse the stock change
+    await tx.product.update({
+      where: { id: movement.productId },
+      data: {
+        stock: {
+          increment: reversalChange
+        },
+        updatedAt: new Date()
+      }
+    });
+  });
+
+  logger.warn({
+    message: 'Stock movement deleted',
+    movementId: req.params.id,
+    productId: movement.productId,
+    reversalChange,
+    userId: req.user?.id,
+    userEmail: req.user?.email
+  });
+
+  res.json({ message: "Stock movement deleted successfully" });
+});
+
+// ✅ Get movements by product
+export const getMovementsByProduct = asyncHandler(async (req, res) => {
+  const { startDate, endDate, reason, page = 1, limit = 100 } = req.query;
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+
+  const where = {
+    productId: req.params.productId,
+    ...(reason && { reason: reason.toLowerCase() }),
+    ...(startDate && endDate && {
+      createdAt: {
+        gte: new Date(startDate),
+        lte: new Date(endDate)
+      }
+    })
+  };
+
+  const [movements, total] = await Promise.all([
+    prisma.stockMovement.findMany({
+      where,
+      include: {
+        branch: { select: { name: true } }
+      },
+      skip: parseInt(skip),
+      take: parseInt(limit),
+      orderBy: { createdAt: 'desc' }
+    }),
+    prisma.stockMovement.count({ where })
+  ]);
+
+  logger.logDatabase('READ', {
+    model: 'StockMovement',
+    operation: 'getMovementsByProduct',
+    productId: req.params.productId,
+    count: movements.length,
+    userId: req.user?.id
+  });
+
+  res.json({
+    movements,
+    pagination: {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      total,
+      pages: Math.ceil(total / parseInt(limit))
+    }
+  });
+});
+
+// ✅ Get product stock history with running balance
+export const getProductStockHistory = asyncHandler(async (req, res) => {
+  const { startDate, endDate, limit = 100 } = req.query;
+  const productId = req.params.productId;
+
+  // Get product info
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    select: { name: true, sku: true, unit: true, stock: true }
+  });
+
+  if (!product) {
+    throw new NotFoundError('Product not found');
+  }
+
+  const where = {
+    productId,
+    ...(startDate && endDate && {
+      createdAt: {
+        gte: new Date(startDate),
+        lte: new Date(endDate)
+      }
+    })
+  };
+
+  // Get movements in chronological order
+  const movements = await prisma.stockMovement.findMany({
+    where,
+    include: {
+      branch: { select: { name: true } }
+    },
+    take: parseInt(limit),
+    orderBy: { createdAt: 'asc' }
+  });
+
+  // Calculate running balance
+  let runningBalance = product.stock;
+  
+  // Work backwards from current stock
+  const totalChange = movements.reduce((sum, m) => sum + m.change, 0);
+  const startingBalance = runningBalance - totalChange;
+  
+  runningBalance = startingBalance;
+  
+  const history = movements.map(movement => {
+    const balanceBefore = runningBalance;
+    runningBalance += movement.change;
+    
+    return {
+      ...movement,
+      balanceBefore,
+      balanceAfter: runningBalance
+    };
+  });
+
+  logger.logDatabase('READ', {
+    model: 'StockMovement',
+    operation: 'getProductStockHistory',
+    productId,
+    userId: req.user?.id
+  });
+
+  res.json({
+    product,
+    currentStock: product.stock,
+    startingBalance,
+    history
+  });
+});
+
+// ✅ Get current product stock
+export const getCurrentProductStock = asyncHandler(async (req, res) => {
+  const productId = req.params.productId;
+
+  const [product, movementSummary] = await Promise.all([
+    prisma.product.findUnique({
+      where: { id: productId },
       select: {
         id: true,
         name: true,
@@ -627,355 +488,533 @@ export const getLowStockProducts = async (req, res) => {
         unit: true,
         stock: true,
         minStock: true,
-        reorderPoint: true,
-        category: { select: { name: true } }
-      },
-      orderBy: { stock: 'asc' }
-    });
+        reorderPoint: true
+      }
+    }),
+    prisma.stockMovement.groupBy({
+      by: ['reason'],
+      where: { productId },
+      _sum: { change: true },
+      _count: true
+    })
+  ]);
 
-    res.json({
-      threshold: parseInt(threshold),
-      count: products.length,
-      products
-    });
-  } catch (err) {
-    console.error('Error in getLowStockProducts:', err);
-    res.status(500).json({ message: "Error fetching low stock products", error: err.message });
+  if (!product) {
+    throw new NotFoundError('Product not found');
   }
-};
 
-// 🆕 Get movements by reason
-export const getMovementsByReason = async (req, res) => {
-  try {
-    const reason = req.params.reason.toLowerCase();
-    const { branchId, productId, startDate, endDate, page = 1, limit = 100 } = req.query;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+  const stockStatus = {
+    current: product.stock,
+    isLowStock: product.stock <= (product.reorderPoint || 10),
+    isOutOfStock: product.stock <= 0,
+    needsReorder: product.minStock ? product.stock <= product.minStock : false
+  };
+
+  logger.logDatabase('READ', {
+    model: 'Product',
+    operation: 'getCurrentProductStock',
+    productId,
+    userId: req.user?.id
+  });
+
+  res.json({
+    product,
+    stockStatus,
+    movementSummary
+  });
+});
+
+// ✅ Get movements by branch
+export const getMovementsByBranch = asyncHandler(async (req, res) => {
+  const { startDate, endDate, reason, productId, page = 1, limit = 100 } = req.query;
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+
+  const where = {
+    branchId: req.params.branchId,
+    ...(reason && { reason: reason.toLowerCase() }),
+    ...(productId && { productId }),
+    ...(startDate && endDate && {
+      createdAt: {
+        gte: new Date(startDate),
+        lte: new Date(endDate)
+      }
+    })
+  };
+
+  const [movements, total] = await Promise.all([
+    prisma.stockMovement.findMany({
+      where,
+      include: {
+        product: {
+          select: {
+            id: true,
+            name: true,
+            sku: true,
+            unit: true
+          }
+        }
+      },
+      skip: parseInt(skip),
+      take: parseInt(limit),
+      orderBy: { createdAt: 'desc' }
+    }),
+    prisma.stockMovement.count({ where })
+  ]);
+
+  logger.logDatabase('READ', {
+    model: 'StockMovement',
+    operation: 'getMovementsByBranch',
+    branchId: req.params.branchId,
+    count: movements.length,
+    userId: req.user?.id
+  });
+
+  res.json({
+    movements,
+    pagination: {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      total,
+      pages: Math.ceil(total / parseInt(limit))
+    }
+  });
+});
+
+// ✅ Get branch stock summary
+export const getBranchStockSummary = asyncHandler(async (req, res) => {
+  const branchId = req.params.branchId;
+  const { startDate, endDate } = req.query;
+
+  const where = {
+    branchId,
+    ...(startDate && endDate && {
+      createdAt: {
+        gte: new Date(startDate),
+        lte: new Date(endDate)
+      }
+    })
+  };
+
+  const [totalMovements, movementsByReason, recentMovements] = await Promise.all([
+    prisma.stockMovement.count({ where }),
+    prisma.stockMovement.groupBy({
+      by: ['reason'],
+      where,
+      _sum: { change: true },
+      _count: true
+    }),
+    prisma.stockMovement.findMany({
+      where,
+      include: {
+        product: { select: { name: true, sku: true } }
+      },
+      take: 10,
+      orderBy: { createdAt: 'desc' }
+    })
+  ]);
+
+  const summary = {
+    totalMovements,
+    byReason: movementsByReason.reduce((acc, item) => {
+      acc[item.reason] = {
+        count: item._count,
+        totalChange: item._sum.change || 0
+      };
+      return acc;
+    }, {}),
+    recentMovements
+  };
+
+  logger.info({
+    message: 'Branch stock summary generated',
+    branchId,
+    userId: req.user?.id
+  });
+
+  res.json(summary);
+});
+
+// ✅ Get low stock products for branch
+export const getLowStockProducts = asyncHandler(async (req, res) => {
+  const branchId = req.params.branchId;
+  const { threshold = 10 } = req.query;
+
+  const products = await prisma.product.findMany({
+    where: {
+      branchId,
+      active: true,
+      stock: { lte: parseInt(threshold) }
+    },
+    select: {
+      id: true,
+      name: true,
+      sku: true,
+      unit: true,
+      stock: true,
+      minStock: true,
+      reorderPoint: true,
+      category: { select: { name: true } }
+    },
+    orderBy: { stock: 'asc' }
+  });
+
+  logger.logDatabase('READ', {
+    model: 'Product',
+    operation: 'getLowStockProducts',
+    branchId,
+    count: products.length,
+    userId: req.user?.id
+  });
+
+  res.json({
+    threshold: parseInt(threshold),
+    count: products.length,
+    products
+  });
+});
+
+// ✅ Get movements by reason
+export const getMovementsByReason = asyncHandler(async (req, res) => {
+  const reason = req.params.reason.toLowerCase();
+  const { branchId, productId, startDate, endDate, page = 1, limit = 100 } = req.query;
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+
+  if (!isValidReason(reason)) {
+    throw new BadRequestError(`Invalid reason. Must be one of: ${MOVEMENT_REASONS.join(', ')}`);
+  }
+
+  const where = {
+    reason,
+    ...(branchId && { branchId }),
+    ...(productId && { productId }),
+    ...(startDate && endDate && {
+      createdAt: {
+        gte: new Date(startDate),
+        lte: new Date(endDate)
+      }
+    })
+  };
+
+  const [movements, total, summary] = await Promise.all([
+    prisma.stockMovement.findMany({
+      where,
+      include: {
+        product: { select: { name: true, sku: true, unit: true } },
+        branch: { select: { name: true } }
+      },
+      skip: parseInt(skip),
+      take: parseInt(limit),
+      orderBy: { createdAt: 'desc' }
+    }),
+    prisma.stockMovement.count({ where }),
+    prisma.stockMovement.aggregate({
+      where,
+      _sum: { change: true },
+      _avg: { change: true }
+    })
+  ]);
+
+  logger.logDatabase('READ', {
+    model: 'StockMovement',
+    operation: 'getMovementsByReason',
+    reason,
+    count: movements.length,
+    userId: req.user?.id
+  });
+
+  res.json({
+    reason,
+    movements,
+    summary: {
+      totalMovements: total,
+      totalChange: summary._sum.change || 0,
+      averageChange: summary._avg.change || 0
+    },
+    pagination: {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      total,
+      pages: Math.ceil(total / parseInt(limit))
+    }
+  });
+});
+
+// ✅ Create bulk movements
+export const createBulkMovements = asyncHandler(async (req, res) => {
+  const { movements } = req.body;
+
+  if (!Array.isArray(movements) || movements.length === 0) {
+    throw new BadRequestError('Movements array is required and cannot be empty');
+  }
+
+  // Validate all movements first
+  const validatedMovements = [];
+  const errors = [];
+
+  for (let i = 0; i < movements.length; i++) {
+    const movement = movements[i];
+    const { productId, branchId, change, reason } = movement;
+
+    if (!productId || !branchId || change === undefined || !reason) {
+      errors.push(`Movement ${i + 1}: Missing required fields`);
+      continue;
+    }
 
     if (!isValidReason(reason)) {
-      return res.status(400).json({ 
-        message: `Invalid reason. Must be one of: ${MOVEMENT_REASONS.join(', ')}` 
-      });
+      errors.push(`Movement ${i + 1}: Invalid reason '${reason}'`);
+      continue;
     }
 
-    const where = {
-      reason,
-      ...(branchId && { branchId }),
-      ...(productId && { productId }),
-      ...(startDate && endDate && {
-        createdAt: {
-          gte: new Date(startDate),
-          lte: new Date(endDate)
-        }
-      })
-    };
+    if (isNaN(parseInt(change))) {
+      errors.push(`Movement ${i + 1}: Invalid change value`);
+      continue;
+    }
 
-    const [movements, total, summary] = await Promise.all([
-      prisma.stockMovement.findMany({
-        where,
-        include: {
-          product: { select: { name: true, sku: true, unit: true } },
-          branch: { select: { name: true } }
-        },
-        skip: parseInt(skip),
-        take: parseInt(limit),
-        orderBy: { createdAt: 'desc' }
-      }),
-      prisma.stockMovement.count({ where }),
-      prisma.stockMovement.aggregate({
-        where,
-        _sum: { change: true },
-        _avg: { change: true }
-      })
-    ]);
-
-    res.json({
-      reason,
-      movements,
-      summary: {
-        totalMovements: total,
-        totalChange: summary._sum.change || 0,
-        averageChange: summary._avg.change || 0
-      },
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit))
-      }
+    validatedMovements.push({
+      productId,
+      branchId,
+      change: parseInt(change),
+      reason: reason.toLowerCase()
     });
-  } catch (err) {
-    console.error('Error in getMovementsByReason:', err);
-    res.status(500).json({ message: "Error fetching movements by reason", error: err.message });
   }
-};
 
-// 🆕 Create bulk movements
-export const createBulkMovements = async (req, res) => {
-  try {
-    const { movements } = req.body;
+  if (errors.length > 0) {
+    throw new BadRequestError('Validation errors', { errors });
+  }
 
-    if (!Array.isArray(movements) || movements.length === 0) {
-      return res.status(400).json({ message: "Movements array is required and cannot be empty" });
-    }
-
-    // Validate all movements first
-    const validatedMovements = [];
-    const errors = [];
-
-    for (let i = 0; i < movements.length; i++) {
-      const movement = movements[i];
-      const { productId, branchId, change, reason } = movement;
-
-      if (!productId || !branchId || change === undefined || !reason) {
-        errors.push(`Movement ${i + 1}: Missing required fields`);
-        continue;
-      }
-
-      if (!isValidReason(reason)) {
-        errors.push(`Movement ${i + 1}: Invalid reason '${reason}'`);
-        continue;
-      }
-
-      if (isNaN(parseInt(change))) {
-        errors.push(`Movement ${i + 1}: Invalid change value`);
-        continue;
-      }
-
-      validatedMovements.push({
-        productId,
-        branchId,
-        change: parseInt(change),
-        reason: reason.toLowerCase()
+  // Process movements in transaction
+  const results = await prisma.$transaction(async (tx) => {
+    const createdMovements = [];
+    
+    for (const movement of validatedMovements) {
+      // Check product exists and has sufficient stock
+      const product = await tx.product.findUnique({
+        where: { id: movement.productId }
       });
+
+      if (!product) {
+        throw new NotFoundError(`Product not found: ${movement.productId}`);
+      }
+
+      if (movement.change < 0 && (product.stock + movement.change) < 0) {
+        throw new BadRequestError(
+          `Insufficient stock for product ${product.sku}. Current: ${product.stock}, Requested: ${movement.change}`
+        );
+      }
+
+      // Create movement
+      const createdMovement = await tx.stockMovement.create({
+        data: movement
+      });
+
+      // Update product stock
+      await tx.product.update({
+        where: { id: movement.productId },
+        data: {
+          stock: { increment: movement.change },
+          updatedAt: new Date()
+        }
+      });
+
+      createdMovements.push(createdMovement);
     }
 
-    if (errors.length > 0) {
-      return res.status(400).json({ message: "Validation errors", errors });
-    }
+    return createdMovements;
+  });
 
-    // Process movements in transaction
-    const results = await prisma.$transaction(async (tx) => {
-      const createdMovements = [];
+  logger.info({
+    message: 'Bulk stock movements created',
+    count: results.length,
+    userId: req.user?.id,
+    userEmail: req.user?.email
+  });
+
+  res.status(201).json({
+    message: `${results.length} stock movements created successfully`,
+    count: results.length,
+    movements: results
+  });
+});
+
+// ✅ Bulk stock adjustment
+export const bulkStockAdjustment = asyncHandler(async (req, res) => {
+  const { adjustments, reason = 'adjustment' } = req.body;
+
+  if (!Array.isArray(adjustments) || adjustments.length === 0) {
+    throw new BadRequestError('Adjustments array is required and cannot be empty');
+  }
+
+  if (!isValidReason(reason)) {
+    throw new BadRequestError(`Invalid reason. Must be one of: ${MOVEMENT_REASONS.join(', ')}`);
+  }
+
+  const results = await prisma.$transaction(async (tx) => {
+    const movements = [];
+
+    for (const adj of adjustments) {
+      const { productId, branchId, newStock } = adj;
+
+      if (!productId || !branchId || newStock === undefined) {
+        throw new BadRequestError('Each adjustment must have productId, branchId, and newStock');
+      }
+
+      // Get current product stock
+      const product = await tx.product.findUnique({
+        where: { id: productId }
+      });
+
+      if (!product) {
+        throw new NotFoundError(`Product not found: ${productId}`);
+      }
+
+      const change = parseInt(newStock) - product.stock;
       
-      for (const movement of validatedMovements) {
-        // Check product exists and has sufficient stock
-        const product = await tx.product.findUnique({
-          where: { id: movement.productId }
-        });
-
-        if (!product) {
-          throw new Error(`Product not found: ${movement.productId}`);
-        }
-
-        if (movement.change < 0 && (product.stock + movement.change) < 0) {
-          throw new Error(`Insufficient stock for product ${product.sku}. Current: ${product.stock}, Requested: ${movement.change}`);
-        }
-
-        // Create movement
-        const createdMovement = await tx.stockMovement.create({
-          data: movement
+      if (change !== 0) {
+        // Create movement record
+        const movement = await tx.stockMovement.create({
+          data: {
+            productId,
+            branchId,
+            change,
+            reason: reason.toLowerCase()
+          }
         });
 
         // Update product stock
         await tx.product.update({
-          where: { id: movement.productId },
+          where: { id: productId },
           data: {
-            stock: { increment: movement.change },
+            stock: parseInt(newStock),
             updatedAt: new Date()
           }
         });
 
-        createdMovements.push(createdMovement);
+        movements.push({ ...movement, oldStock: product.stock, newStock: parseInt(newStock) });
       }
+    }
 
-      return createdMovements;
-    });
+    return movements;
+  });
 
-    res.status(201).json({
-      message: `${results.length} stock movements created successfully`,
-      count: results.length,
-      movements: results
-    });
-  } catch (err) {
-    console.error('Error in createBulkMovements:', err);
-    res.status(500).json({ message: "Error creating bulk movements", error: err.message });
+  logger.info({
+    message: 'Bulk stock adjustments processed',
+    count: results.length,
+    reason,
+    userId: req.user?.id
+  });
+
+  res.json({
+    message: `${results.length} stock adjustments processed`,
+    adjustments: results
+  });
+});
+
+// ✅ Receive stock (purchase/delivery)
+export const receiveStock = asyncHandler(async (req, res) => {
+  const { productId, branchId, quantity, reason = 'purchase' } = req.body;
+
+  if (!productId || !branchId || !quantity || quantity <= 0) {
+    throw new BadRequestError('productId, branchId, and positive quantity are required');
   }
-};
 
-// 🆕 Bulk stock adjustment
-export const bulkStockAdjustment = async (req, res) => {
-  try {
-    const { adjustments, reason = 'adjustment' } = req.body;
-
-    if (!Array.isArray(adjustments) || adjustments.length === 0) {
-      return res.status(400).json({ message: "Adjustments array is required and cannot be empty" });
-    }
-
-    if (!isValidReason(reason)) {
-      return res.status(400).json({ 
-        message: `Invalid reason. Must be one of: ${MOVEMENT_REASONS.join(', ')}` 
-      });
-    }
-
-    const results = await prisma.$transaction(async (tx) => {
-      const movements = [];
-
-      for (const adj of adjustments) {
-        const { productId, branchId, newStock } = adj;
-
-        if (!productId || !branchId || newStock === undefined) {
-          throw new Error("Each adjustment must have productId, branchId, and newStock");
-        }
-
-        // Get current product stock
-        const product = await tx.product.findUnique({
-          where: { id: productId }
-        });
-
-        if (!product) {
-          throw new Error(`Product not found: ${productId}`);
-        }
-
-        const change = parseInt(newStock) - product.stock;
-        
-        if (change !== 0) {
-          // Create movement record
-          const movement = await tx.stockMovement.create({
-            data: {
-              productId,
-              branchId,
-              change,
-              reason: reason.toLowerCase()
-            }
-          });
-
-          // Update product stock
-          await tx.product.update({
-            where: { id: productId },
-            data: {
-              stock: parseInt(newStock),
-              updatedAt: new Date()
-            }
-          });
-
-          movements.push({ ...movement, oldStock: product.stock, newStock: parseInt(newStock) });
-        }
+  const result = await prisma.$transaction(async (tx) => {
+    const movement = await tx.stockMovement.create({
+      data: {
+        productId,
+        branchId,
+        change: parseInt(quantity),
+        reason: reason.toLowerCase()
+      },
+      include: {
+        product: { select: { name: true, sku: true, unit: true } },
+        branch: { select: { name: true } }
       }
-
-      return movements;
     });
 
-    res.json({
-      message: `${results.length} stock adjustments processed`,
-      adjustments: results
-    });
-  } catch (err) {
-    console.error('Error in bulkStockAdjustment:', err);
-    res.status(500).json({ message: "Error processing bulk adjustments", error: err.message });
-  }
-};
-
-// ... CONTINUED IN NEXT PART DUE TO LENGTH ...
-// 🆕 Receive stock (purchase/delivery)
-export const receiveStock = async (req, res) => {
-  try {
-    const { productId, branchId, quantity, reason = 'purchase' } = req.body;
-
-    if (!productId || !branchId || !quantity || quantity <= 0) {
-      return res.status(400).json({ 
-        message: "productId, branchId, and positive quantity are required" 
-      });
-    }
-
-    const result = await prisma.$transaction(async (tx) => {
-      const movement = await tx.stockMovement.create({
-        data: {
-          productId,
-          branchId,
-          change: parseInt(quantity),
-          reason: reason.toLowerCase()
-        },
-        include: {
-          product: { select: { name: true, sku: true, unit: true } },
-          branch: { select: { name: true } }
-        }
-      });
-
-      await tx.product.update({
-        where: { id: productId },
-        data: {
-          stock: { increment: parseInt(quantity) },
-          updatedAt: new Date()
-        }
-      });
-
-      return movement;
-    });
-
-    res.status(201).json(result);
-  } catch (err) {
-    console.error('Error in receiveStock:', err);
-    res.status(500).json({ message: "Error receiving stock", error: err.message });
-  }
-};
-
-// 🆕 Adjust stock (inventory correction)
-export const adjustStock = async (req, res) => {
-  try {
-    const { productId, branchId, adjustment, reason = 'adjustment' } = req.body;
-
-    if (!productId || !branchId || adjustment === undefined) {
-      return res.status(400).json({ 
-        message: "productId, branchId, and adjustment are required" 
-      });
-    }
-
-    const adjustmentInt = parseInt(adjustment);
-    if (adjustmentInt === 0) {
-      return res.status(400).json({ message: "Adjustment cannot be zero" });
-    }
-
-    const result = await prisma.$transaction(async (tx) => {
-      const product = await tx.product.findUnique({ where: { id: productId } });
-      
-      if (!product) {
-        throw new Error("Product not found");
+    await tx.product.update({
+      where: { id: productId },
+      data: {
+        stock: { increment: parseInt(quantity) },
+        updatedAt: new Date()
       }
-
-      if (adjustmentInt < 0 && (product.stock + adjustmentInt) < 0) {
-        throw new Error(`Insufficient stock. Current: ${product.stock}, Adjustment: ${adjustmentInt}`);
-      }
-
-      const movement = await tx.stockMovement.create({
-        data: {
-          productId,
-          branchId,
-          change: adjustmentInt,
-          reason: reason.toLowerCase()
-        },
-        include: {
-          product: { select: { name: true, sku: true, unit: true } },
-          branch: { select: { name: true } }
-        }
-      });
-
-      const updatedProduct = await tx.product.update({
-        where: { id: productId },
-        data: {
-          stock: { increment: adjustmentInt },
-          updatedAt: new Date()
-        }
-      });
-
-      return { movement, newStock: updatedProduct.stock };
     });
 
-    res.json(result);
-  } catch (err) {
-    console.error('Error in adjustStock:', err);
-    res.status(500).json({ message: "Error adjusting stock", error: err.message });
+    return movement;
+  });
+
+  logger.info({
+    message: 'Stock received',
+    movementId: result.id,
+    productId,
+    branchId,
+    quantity: parseInt(quantity),
+    userId: req.user?.id
+  });
+
+  res.status(201).json(result);
+});
+
+// ✅ Adjust stock (inventory correction)
+export const adjustStock = asyncHandler(async (req, res) => {
+  const { productId, branchId, adjustment, reason = 'adjustment' } = req.body;
+
+  if (!productId || !branchId || adjustment === undefined) {
+    throw new BadRequestError('productId, branchId, and adjustment are required');
   }
-};
+
+  const adjustmentInt = parseInt(adjustment);
+  if (adjustmentInt === 0) {
+    throw new BadRequestError('Adjustment cannot be zero');
+  }
+
+  const result = await prisma.$transaction(async (tx) => {
+    const product = await tx.product.findUnique({ where: { id: productId } });
+    
+    if (!product) {
+      throw new NotFoundError('Product not found');
+    }
+
+    if (adjustmentInt < 0 && (product.stock + adjustmentInt) < 0) {
+      throw new BadRequestError(
+        `Insufficient stock. Current: ${product.stock}, Adjustment: ${adjustmentInt}`
+      );
+    }
+
+    const movement = await tx.stockMovement.create({
+      data: {
+        productId,
+        branchId,
+        change: adjustmentInt,
+        reason: reason.toLowerCase()
+      },
+      include: {
+        product: { select: { name: true, sku: true, unit: true } },
+        branch: { select: { name: true } }
+      }
+    });
+
+    const updatedProduct = await tx.product.update({
+      where: { id: productId },
+      data: {
+        stock: { increment: adjustmentInt },
+        updatedAt: new Date()
+      }
+    });
+
+    return { movement, newStock: updatedProduct.stock };
+  });
+
+  logger.info({
+    message: 'Stock adjusted',
+    movementId: result.movement.id,
+    productId,
+    adjustment: adjustmentInt,
+    newStock: result.newStock,
+    userId: req.user?.id
+  });
+
+  res.json(result);
+});
 
 // 🆕 Transfer stock between branches
 export const transferStock = async (req, res) => {

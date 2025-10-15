@@ -1,3 +1,321 @@
+@import "tailwindcss";
+@import "tailwindcss";
+
+/* Define your custom theme */
+@theme {
+  /* Primary colors */
+  --color-primary-50: #eff6ff;
+  --color-primary-100: #dbeafe;
+  --color-primary-200: #bfdbfe;
+  --color-primary-300: #93c5fd;
+  --color-primary-400: #60a5fa;
+  --color-primary-500: #3b82f6;
+  --color-primary-600: #2563eb;
+  --color-primary-700: #1d4ed8;
+  --color-primary-800: #1e40af;
+  --color-primary-900: #1e3a8a;
+
+  /* Secondary colors */
+  --color-secondary-50: #faf5ff;
+  --color-secondary-100: #f3e8ff;
+  --color-secondary-200: #e9d5ff;
+  --color-secondary-300: #d8b4fe;
+  --color-secondary-400: #c084fc;
+  --color-secondary-500: #a855f7;
+  --color-secondary-600: #9333ea;
+  --color-secondary-700: #7e22ce;
+  --color-secondary-800: #6b21a8;
+  --color-secondary-900: #581c87;
+
+  /* Success colors */
+  --color-success-50: #f0fdf4;
+  --color-success-100: #dcfce7;
+  --color-success-200: #bbf7d0;
+  --color-success-300: #86efac;
+  --color-success-400: #4ade80;
+  --color-success-500: #22c55e;
+  --color-success-600: #16a34a;
+  --color-success-700: #15803d;
+  --color-success-800: #166534;
+  --color-success-900: #14532d;
+
+  /* Warning colors */
+  --color-warning-50: #fffbeb;
+  --color-warning-100: #fef3c7;
+  --color-warning-200: #fde68a;
+  --color-warning-300: #fcd34d;
+  --color-warning-400: #fbbf24;
+  --color-warning-500: #f59e0b;
+  --color-warning-600: #d97706;
+  --color-warning-700: #b45309;
+  --color-warning-800: #92400e;
+  --color-warning-900: #78350f;
+
+  /* Danger colors */
+  --color-danger-50: #fef2f2;
+  --color-danger-100: #fee2e2;
+  --color-danger-200: #fecaca;
+  --color-danger-300: #fca5a5;
+  --color-danger-400: #f87171;
+  --color-danger-500: #ef4444;
+  --color-danger-600: #dc2626;
+  --color-danger-700: #b91c1c;
+  --color-danger-800: #991b1b;
+  --color-danger-900: #7f1d1d;
+
+  /* POS specific colors */
+  --color-pos-bg: #f8fafc;
+  --color-pos-sidebar: #1e293b;
+  --color-pos-card: #ffffff;
+  --color-pos-border: #e2e8f0;
+  --color-pos-text: #0f172a;
+  --color-pos-text-secondary: #64748b;
+  --color-pos-text-muted: #94a3b8;
+
+  /* Custom border radius */
+  --radius-card: 12px;
+  --radius-button: 8px;
+
+  /* Custom shadows */
+  --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px 0 rgb(0 0 0 / 0.06);
+  --shadow-button: 0 2px 4px rgb(0 0 0 / 0.1);
+  --shadow-hover: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+}
+
+/* Custom component classes */
+@layer components {
+  /* Button Styles */
+  .btn-primary {
+    background-color: var(--color-primary-500);
+    color: white;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-button);
+    transition: background-color 200ms;
+    box-shadow: var(--shadow-button);
+  }
+  
+  .btn-primary:hover {
+    background-color: var(--color-primary-600);
+  }
+
+  .btn-secondary {
+    background-color: var(--color-secondary-500);
+    color: white;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-button);
+    transition: background-color 200ms;
+  }
+
+  .btn-secondary:hover {
+    background-color: var(--color-secondary-600);
+  }
+
+  .btn-success {
+    background-color: var(--color-success-500);
+    color: white;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-button);
+    transition: background-color 200ms;
+  }
+
+  .btn-success:hover {
+    background-color: var(--color-success-600);
+  }
+
+  .btn-danger {
+    background-color: var(--color-danger-500);
+    color: white;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-button);
+    transition: background-color 200ms;
+  }
+
+  .btn-danger:hover {
+    background-color: var(--color-danger-600);
+  }
+
+  .btn-outline {
+    border: 2px solid var(--color-primary-500);
+    color: var(--color-primary-500);
+    background-color: transparent;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-button);
+    transition: all 200ms;
+  }
+
+  .btn-outline:hover {
+    background-color: var(--color-primary-500);
+    color: white;
+  }
+
+  /* Card Styles */
+  .card {
+    background-color: var(--color-pos-card);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+    padding: 1.5rem;
+    border: 1px solid var(--color-pos-border);
+  }
+
+  .card-hover {
+    background-color: var(--color-pos-card);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+    padding: 1.5rem;
+    border: 1px solid var(--color-pos-border);
+    transition: box-shadow 200ms;
+    cursor: pointer;
+  }
+
+  .card-hover:hover {
+    box-shadow: var(--shadow-hover);
+  }
+
+  /* Input Styles */
+  .input-field {
+    width: 100%;
+    padding: 0.5rem 1rem;
+    border: 1px solid #d1d5db;
+    border-radius: var(--radius-button);
+    transition: all 200ms;
+  }
+
+  .input-field:focus {
+    outline: none;
+    border-color: transparent;
+    box-shadow: 0 0 0 2px var(--color-primary-500);
+  }
+
+  .input-error {
+    width: 100%;
+    padding: 0.5rem 1rem;
+    border: 2px solid var(--color-danger-500);
+    border-radius: var(--radius-button);
+  }
+
+  .input-error:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--color-danger-500);
+  }
+
+  /* Badge Styles */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
+  .badge-success {
+    background-color: var(--color-success-100);
+    color: var(--color-success-800);
+  }
+
+  .badge-warning {
+    background-color: var(--color-warning-100);
+    color: var(--color-warning-800);
+  }
+
+  .badge-danger {
+    background-color: var(--color-danger-100);
+    color: var(--color-danger-800);
+  }
+
+  /* Table Styles */
+  .table-container {
+    overflow-x: auto;
+    border-radius: var(--radius-card);
+    border: 1px solid var(--color-pos-border);
+  }
+
+  .table-header {
+    background-color: #f9fafb;
+    color: var(--color-pos-text);
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .table-row {
+    border-bottom: 1px solid var(--color-pos-border);
+    transition: background-color 150ms;
+  }
+
+  .table-row:hover {
+    background-color: #f9fafb;
+  }
+
+  .table-cell {
+    padding: 1rem 1.5rem;
+    color: var(--color-pos-text);
+  }
+
+  /* Alert Styles */
+  .alert {
+    padding: 1rem;
+    border-radius: var(--radius-button);
+    border-left: 4px solid;
+  }
+
+  .alert-success {
+    background-color: var(--color-success-50);
+    border-color: var(--color-success-500);
+    color: var(--color-success-800);
+  }
+
+  .alert-warning {
+    background-color: var(--color-warning-50);
+    border-color: var(--color-warning-500);
+    color: var(--color-warning-800);
+  }
+
+  .alert-danger {
+    background-color: var(--color-danger-50);
+    border-color: var(--color-danger-500);
+    color: var(--color-danger-800);
+  }
+
+  .alert-info {
+    background-color: var(--color-primary-50);
+    border-color: var(--color-primary-500);
+    color: var(--color-primary-800);
+  }
+
+  /* Layout */
+  .page-container {
+    min-height: 100vh;
+    background-color: var(--color-pos-bg);
+  }
+
+  .page-content {
+    max-width: 80rem;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+  }
+
+  .section-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-pos-text);
+    margin-bottom: 1.5rem;
+  }
+
+  .section-subtitle {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--color-pos-text-secondary);
+    margin-bottom: 1rem;
+  }
+}
+
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;

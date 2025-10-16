@@ -3,6 +3,11 @@ import Button from './components/common/Button';
 import Input from './components/common/Input';
 import Modal from './components/common/Modal';
 import TextArea from './components/common/TextArea';
+import Select from './components/common/Select';
+import Checkbox from './components/common/Checkbox';
+import Radio, { RadioGroup } from './components/common/Radio';
+import Card, { StatCard, CardBody, CardHeader, CardSection } from './components/common/Card';
+
 import { 
   AlertTriangle, 
   Plus, 
@@ -14,7 +19,10 @@ import {
   Eye, 
   EyeOff,
   ShoppingCart,
-  Package
+  Package,
+  Tag,
+  DollarSign
+
 } from 'lucide-react';
 
 function App() {
@@ -23,6 +31,12 @@ function App() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [formModalOpen, setFormModalOpen] = useState(false);
   const [loadingModalOpen, setLoadingModalOpen] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [shipping, setShipping] = useState('standard');
+  
+  
+  const [category, setCategory] = useState('');
+
 
   // Form states
   const [formData, setFormData] = useState({
@@ -37,6 +51,12 @@ function App() {
 
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
+  
+               const [accepted, setAccepted] = useState(false);
+  const [newsletter, setNewsletter] = useState(true);
+  const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
+  const [size, setSize] = useState('medium');
+
 
   // Handlers
   const handleSave = () => {
@@ -87,12 +107,49 @@ function App() {
           </p>
         </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <Card hoverable>
+      <CardHeader title="Product 1" />
+      <CardBody>Content</CardBody>
+    </Card>
+    <Card hoverable>
+      <CardHeader title="Product 2" />
+      <CardBody>Content</CardBody>
+    </Card>
+  </div>
+
         {/* Buttons Section */}
         <section className="bg-white rounded-lg shadow-md p-6 space-y-4">
           <h2 className="text-2xl font-semibold text-gray-800 mb-4">Buttons</h2>
           
           <div className="space-y-3">
             <div className="flex flex-wrap gap-3">
+
+
+              <Checkbox
+                label="I accept the terms and conditions"
+                checked={accepted}
+                onChange={(e) => setAccepted(e.target.checked)}
+              />
+
+            
+              <Checkbox
+                label="Send me promotional emails"
+                description="Receive updates about new products and special offers"
+                checked={newsletter}
+                onChange={(e) => setNewsletter(e.target.checked)}
+              />
+
+              
+              <Checkbox
+                label="I agree to the privacy policy"
+                checked={agreedToPrivacy}
+                onChange={(e) => setAgreedToPrivacy(e.target.checked)}
+                error="You must accept the privacy policy"
+                required
+              />
+
+
               <Button variant="primary" onClick={() => setBasicModalOpen(true)}>
                 Primary Button
               </Button>
@@ -122,6 +179,63 @@ function App() {
           <h2 className="text-2xl font-semibold text-gray-800 mb-4">Inputs</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+          
+
+          <RadioGroup
+            label="Select Payment Method"
+            name="payment"
+            value={paymentMethod}
+            onChange={setPaymentMethod}
+            options={[
+              {
+                value: 'cash',
+                label: 'Cash',
+                description: 'Pay with physical money'
+     },
+      {
+        value: 'card',
+        label: 'Credit/Debit Card',
+        description: 'Pay with card'
+      },
+      {
+        value: 'mobile',
+        label: 'Mobile Payment',
+        description: 'Pay with mobile app'
+      },
+    ]}
+  />
+
+ 
+
+  <RadioGroup
+    label="Product Size"
+    name="size"
+    value={size}
+    onChange={setSize}
+    orientation="horizontal"
+    options={[
+      { value: 'small', label: 'Small' },
+      { value: 'medium', label: 'Medium' },
+      { value: 'large', label: 'Large' },
+    ]}
+  />
+
+
+  <RadioGroup
+    label="Shipping Method"
+    value={shipping}
+    onChange={setShipping}
+    error="Please select a shipping method"
+    required
+    options={[
+      { value: 'standard', label: 'Standard Delivery' },
+      { value: 'express', label: 'Express Delivery' },
+    ]}
+  />
+
+
+
             <Input
               label="Email Address"
               type="email"
@@ -220,6 +334,18 @@ function App() {
           </div>
         </section>
 
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+  <StatCard
+            title="Total Sales"
+            value="₪12,345"
+            icon={DollarSign}
+            trend="up"
+            trendLabel="+12% from last month"
+            color="success"
+          />
+        </div>
+
         {/* Modal Triggers Section */}
         <section className="bg-white rounded-lg shadow-md p-6 space-y-4">
           <h2 className="text-2xl font-semibold text-gray-800 mb-4">Modals</h2>
@@ -256,6 +382,22 @@ function App() {
             >
               Loading Modal
             </Button>
+
+ <Select
+    label="Payment Method"
+    leftIcon={Tag}
+    options={[
+      { value: 'cash', label: 'Cash' },
+      { value: 'credit_card', label: 'Credit Card' },
+      { value: 'debit_card', label: 'Debit Card' },
+      { value: 'mobile_payment', label: 'Mobile Payment' },
+      { value: 'check', label: 'Check' }
+    ]}
+    value={paymentMethod}
+    onChange={(e) => setPaymentMethod(e.target.value)}
+    required
+  />
+
           </div>
         </section>
 

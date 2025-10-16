@@ -1,138 +1,450 @@
-import { useState } from 'react'
+import { useState } from 'react';
 import Button from './components/common/Button';
-import { Plus, Trash2, Edit,Mail, Lock, Search, Eye, EyeOff } from 'lucide-react';
 import Input from './components/common/Input';
-
-
-
- 
-import './App.css'
-
-function handleSave() {
-  alert('Save button clicked!');
-}
+import Modal from './components/common/Modal';
+import TextArea from './components/common/TextArea';
+import { 
+  AlertTriangle, 
+  Plus, 
+  Trash2, 
+  Edit, 
+  Mail, 
+  Lock, 
+  Search, 
+  Eye, 
+  EyeOff,
+  ShoppingCart,
+  Package
+} from 'lucide-react';
 
 function App() {
-  const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  
+  // Modal states
+  const [basicModalOpen, setBasicModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [formModalOpen, setFormModalOpen] = useState(false);
+  const [loadingModalOpen, setLoadingModalOpen] = useState(false);
 
-  function handleLoading() {
-    setIsLoading(true);
+  // Form states
+  const [formData, setFormData] = useState({
+    productName: '',
+    price: '',
+    sku: '',
+    description: '',
+    email: '',
+    password: '',
+    notes: ''
+  });
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  // Handlers
+  const handleSave = () => {
+    alert('Product saved successfully!');
+    setFormModalOpen(false);
+  };
+
+  const handleDelete = () => {
+    alert('Product deleted!');
+    setDeleteModalOpen(false);
+  };
+
+  const handleSubmit = (e) => {
+    e?.preventDefault();
+    
+    // Simple validation
+    const newErrors = {};
+    if (!formData.productName) newErrors.productName = 'Product name is required';
+    if (!formData.price) newErrors.price = 'Price is required';
+    if (!formData.description) newErrors.description = 'Description is required';
+
+    setErrors(newErrors);
+
+    if (Object.keys(newErrors).length === 0) {
+      handleSave();
+    }
+  };
+
+  const simulateLoading = () => {
+    setLoadingModalOpen(true);
     setTimeout(() => {
-      setIsLoading(false);
-    }, 2000);
-  }
+      setLoadingModalOpen(false);
+      alert('Processing complete!');
+    }, 3000);
+  };
 
   return (
-    <>
-  <Button variant="primary" onClick={handleSave}>Save</Button>
-  
- 
-  <Button variant="success" icon={Plus} iconPosition="left">
-    Add Product
-  </Button>
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="max-w-6xl mx-auto space-y-8">
+        
+        {/* Header */}
+        <div className="text-center space-y-2">
+          <h1 className="text-4xl font-bold text-gray-900">
+            POS Component Library
+          </h1>
+          <p className="text-gray-600">
+            Testing Button, Input, TextArea, and Modal Components
+          </p>
+        </div>
 
-  <Button variant="primary" loading={isLoading}>
-    Submitting...
-  </Button>
+        {/* Buttons Section */}
+        <section className="bg-white rounded-lg shadow-md p-6 space-y-4">
+          <h2 className="text-2xl font-semibold text-gray-800 mb-4">Buttons</h2>
+          
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-3">
+              <Button variant="primary" onClick={() => setBasicModalOpen(true)}>
+                Primary Button
+              </Button>
+              <Button variant="secondary">Secondary</Button>
+              <Button variant="success" icon={Plus}>Add Product</Button>
+              <Button variant="danger" icon={Trash2}>Delete</Button>
+              <Button variant="outline">Outline</Button>
+            </div>
 
-  <Button variant="danger" disabled>
-    Delete
-  </Button>
+            <div className="flex flex-wrap gap-3">
+              <Button size="sm">Small</Button>
+              <Button size="md">Medium</Button>
+              <Button size="lg">Large</Button>
+            </div>
 
-  <Button size="xs">Extra Small</Button>
-  <Button size="sm">Small</Button>
-  <Button size="md">Medium</Button>
-  <Button size="lg">Large</Button>
-  <Button size="xl">Extra Large</Button>
+            <div className="flex flex-wrap gap-3">
+              <Button loading>Loading...</Button>
+              <Button disabled>Disabled</Button>
+              <Button icon={Edit} iconPosition="left">Edit</Button>
+              <Button icon={Trash2} iconPosition="right">Delete</Button>
+            </div>
+          </div>
+        </section>
 
-  <Button fullWidth variant="primary">
-    Full Width Button
-  </Button>
-  
+        {/* Inputs Section */}
+        <section className="bg-white rounded-lg shadow-md p-6 space-y-4">
+          <h2 className="text-2xl font-semibold text-gray-800 mb-4">Inputs</h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="Email Address"
+              type="email"
+              placeholder="Enter your email"
+              leftIcon={Mail}
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            />
 
-  <Button className="shadow-lg" variant="primary">
-   Custom Styled
-  </Button>
+            <Input
+              label="Password"
+              type={showPassword ? 'text' : 'password'}
+              placeholder="Enter password"
+              leftIcon={Lock}
+              rightIcon={showPassword ? Eye : EyeOff}
+              onRightIconClick={() => setShowPassword(!showPassword)}
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+            />
 
- 
-  <Input
-    label="Email"
-    type="email"
-    placeholder="Enter your email"
-    value={Mail}
-    onChange={(e) => setEmail(e.target.value)}
-  />
-  
- 
-  <Input
-    label="Username"
-    // value={}
-    onChange={(e) => setUsername(e.target.value)}
-    error="Username is required"
-    required
-  />
+            <Input
+              label="Search Products"
+              placeholder="Search..."
+              leftIcon={Search}
+              helperText="Start typing to search"
+            />
 
-  
-  <Input
-    label="Search Products"
-    placeholder="Search..."
-    leftIcon={Search}
-  />
+            <Input
+              label="Product Price"
+              type="number"
+              placeholder="0.00"
+              min="0"
+              step="0.01"
+              error={errors.price}
+              value={formData.price}
+              onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+            />
 
-  <Input
-    label="Password"
-    type={showPassword ? 'text' : 'password'}
-    leftIcon={Lock}
-    rightIcon={showPassword ? Eye : EyeOff}
-    onRightIconClick={() => setShowPassword(!showPassword)}
-  />
+            <Input
+              label="Quantity"
+              type="number"
+              placeholder="0"
+              min="0"
+              max="1000"
+              size="lg"
+            />
 
-  <Input
-    label="Phone Number"
-    type="tel"
-    helperText="Format: +972-50-123-4567"
-  />
+            <Input
+              label="Disabled Input"
+              value="Cannot edit this"
+              disabled
+            />
+          </div>
+        </section>
 
+        {/* TextArea Section */}
+        <section className="bg-white rounded-lg shadow-md p-6 space-y-4">
+          <h2 className="text-2xl font-semibold text-gray-800 mb-4">TextAreas</h2>
+          
+          <div className="grid grid-cols-1 gap-4">
+            <TextArea
+              label="Product Description"
+              placeholder="Enter detailed product description..."
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              maxLength={500}
+              showCharCount
+              error={errors.description}
+              helperText="Provide a comprehensive description of your product"
+            />
 
-  <Input
-    label="Account ID"
-    value="12345"
-    disabled
-  />
+            <TextArea
+              label="Auto-Resize Notes"
+              placeholder="Type here and watch it grow..."
+              value={formData.notes}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              autoResize
+              helperText="This textarea automatically resizes as you type"
+            />
 
-  // Read only
-  <Input
-    label="Generated Code"
-    value="ABC-123-XYZ"
-    readOnly
-  />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <TextArea
+                label="Small TextArea"
+                size="sm"
+                rows={3}
+                placeholder="Small size..."
+              />
 
-  // Different sizes
-  <Input size="sm" placeholder="Small" />
-  <Input size="md" placeholder="Medium" />
-  <Input size="lg" placeholder="Large" />
+              <TextArea
+                label="Fixed Size (No Resize)"
+                rows={3}
+                resize="none"
+                placeholder="You cannot resize this..."
+              />
+            </div>
+          </div>
+        </section>
 
-  // Number input with min/max
-  <Input
-    label="Quantity"
-    type="number"
-    min="0"
-    max="100"
-    step="1"
-  />
+        {/* Modal Triggers Section */}
+        <section className="bg-white rounded-lg shadow-md p-6 space-y-4">
+          <h2 className="text-2xl font-semibold text-gray-800 mb-4">Modals</h2>
+          
+          <div className="flex flex-wrap gap-3">
+            <Button 
+              variant="primary" 
+              onClick={() => setBasicModalOpen(true)}
+              icon={Package}
+            >
+              Basic Modal
+            </Button>
+            
+            <Button 
+              variant="danger" 
+              onClick={() => setDeleteModalOpen(true)}
+              icon={Trash2}
+            >
+              Delete Modal
+            </Button>
+            
+            <Button 
+              variant="success" 
+              onClick={() => setFormModalOpen(true)}
+              icon={Plus}
+            >
+              Form Modal
+            </Button>
 
+            <Button 
+              variant="secondary" 
+              onClick={simulateLoading}
+              icon={ShoppingCart}
+            >
+              Loading Modal
+            </Button>
+          </div>
+        </section>
 
-  <Input
-    label="SKU"
-    maxLength={20}
-    helperText="Maximum 20 characters"
-  />
- 
- 
-    </>
-  )
+        {/* Complete Form Example */}
+        <section className="bg-white rounded-lg shadow-md p-6 space-y-4">
+          <h2 className="text-2xl font-semibold text-gray-800 mb-4">
+            Complete Form Example
+          </h2>
+          
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input
+                label="Product Name"
+                placeholder="Enter product name"
+                value={formData.productName}
+                onChange={(e) => setFormData({ ...formData, productName: e.target.value })}
+                error={errors.productName}
+                required
+              />
+
+              <Input
+                label="SKU"
+                placeholder="Enter SKU code"
+                value={formData.sku}
+                onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                maxLength={20}
+              />
+            </div>
+
+            <TextArea
+              label="Description"
+              placeholder="Describe your product..."
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              maxLength={300}
+              showCharCount
+              error={errors.description}
+              required
+            />
+
+            <div className="flex gap-3">
+              <Button type="submit" variant="primary">
+                Submit Form
+              </Button>
+              <Button 
+                type="button" 
+                variant="outline"
+                onClick={() => {
+                  setFormData({
+                    productName: '',
+                    price: '',
+                    sku: '',
+                    description: '',
+                    email: '',
+                    password: '',
+                    notes: ''
+                  });
+                  setErrors({});
+                }}
+              >
+                Reset
+              </Button>
+            </div>
+          </form>
+        </section>
+
+      </div>
+
+      {/* Modals */}
+      
+      {/* Basic Modal */}
+      <Modal
+        isOpen={basicModalOpen}
+        onClose={() => setBasicModalOpen(false)}
+        title="Product Information"
+        size="md"
+      >
+        <div className="space-y-3">
+          <p className="text-gray-700">
+            This is a basic modal dialog. You can display any content here.
+          </p>
+          <p className="text-gray-600 text-sm">
+            Click outside, press ESC, or click the X button to close.
+          </p>
+        </div>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        title="Delete Product"
+        size="sm"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setDeleteModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="danger" icon={Trash2} onClick={handleDelete}>
+              Delete
+            </Button>
+          </>
+        }
+      >
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="h-6 w-6 text-danger-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-gray-700">
+              Are you sure you want to delete this product? This action cannot be undone.
+            </p>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Form Modal */}
+      <Modal
+        isOpen={formModalOpen}
+        onClose={() => setFormModalOpen(false)}
+        title="Add New Product"
+        size="lg"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setFormModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={handleSubmit}>
+              Save Product
+            </Button>
+          </>
+        }
+      >
+        <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+          <Input
+            label="Product Name"
+            placeholder="Enter product name"
+            value={formData.productName}
+            onChange={(e) => setFormData({ ...formData, productName: e.target.value })}
+            error={errors.productName}
+            required
+          />
+          
+          <Input
+            label="Price"
+            type="number"
+            placeholder="0.00"
+            value={formData.price}
+            onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+            error={errors.price}
+            required
+          />
+          
+          <Input
+            label="SKU"
+            placeholder="Enter SKU"
+            value={formData.sku}
+            onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+          />
+
+          <TextArea
+            label="Description"
+            placeholder="Product description..."
+            value={formData.description}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            error={errors.description}
+            maxLength={200}
+            showCharCount
+            required
+          />
+        </form>
+      </Modal>
+
+      {/* Loading Modal */}
+      <Modal
+        isOpen={loadingModalOpen}
+        onClose={() => {}}
+        title="Processing Transaction..."
+        showCloseButton={false}
+        closeOnOverlayClick={false}
+        closeOnEsc={false}
+        size="sm"
+      >
+        <div className="flex flex-col items-center justify-center py-8 space-y-4">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-primary-500" />
+          <p className="text-gray-600">Please wait while we process your request...</p>
+        </div>
+      </Modal>
+
+    </div>
+  );
 }
 
-export default App
+export default App;

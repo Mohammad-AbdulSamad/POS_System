@@ -153,6 +153,31 @@
     /* color: white; */
   }
 
+  .badge-primary {
+  background-color: var(--color-primary-100);
+  color: var(--color-primary-800);
+}
+
+.badge-secondary {
+  background-color: var(--color-secondary-100);
+  color: var(--color-secondary-800);
+}
+
+.badge-info {
+  background-color: var(--color-primary-100);
+  color: var(--color-primary-800);
+}
+
+.badge-gray {
+  background-color: #f3f4f6;
+  color: #1f2937;
+}
+
+.badge-dark {
+  background-color: #1f2937;
+  color: #ffffff;
+}
+
   /* Card Styles */
   .card {
     background-color: var(--color-pos-card);

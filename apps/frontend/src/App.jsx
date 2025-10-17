@@ -7,7 +7,12 @@ import Select from './components/common/Select';
 import Checkbox from './components/common/Checkbox';
 import Radio, { RadioGroup } from './components/common/Radio';
 import Card, { StatCard, CardBody, CardHeader, CardSection } from './components/common/Card';
-
+import Badge from './components/common/Badge';
+import Dropdown from './components/common/Dropdown';
+import { Package, User, Tag } from 'lucide-react';
+import DatePicker from './components/common/DatePicker';
+import SearchBar from './components/common/SearchBar';  
+import FileUpload from './components/common/FileUpload';
 import { 
   AlertTriangle, 
   Plus, 
@@ -19,13 +24,28 @@ import {
   Eye, 
   EyeOff,
   ShoppingCart,
-  Package,
-  Tag,
-  DollarSign
+  
+ 
+  DollarSign,
+  CheckCircle, 
+  
+  XCircle, 
+  Clock,
+ 
+  TrendingUp 
 
 } from 'lucide-react';
 
 function App() {
+
+// Multiple files
+  const [images, setImages] = useState([]);
+// Basic single file upload
+  const [file, setFile] = useState(null);
+ 
+  const [query, setQuery] = useState('');
+
+  const [appointmentDate, setAppointmentDate] = useState('');
   // Modal states
   const [basicModalOpen, setBasicModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -33,9 +53,27 @@ function App() {
   const [loadingModalOpen, setLoadingModalOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [shipping, setShipping] = useState('standard');
+  const [selectedPayment, setSelectedPayment] = useState('');
+
+  const [role, setRole] = useState('');
+
   
-  
-  const [category, setCategory] = useState('');
+  // const [category, setCategory] = useState('');
+
+
+    // Basic usage
+  //  // With icons
+  const paymentOptions = [
+    { value: 'cash', label: 'Cash', icon: Tag },
+    { value: 'credit', label: 'Credit Card', icon: User },
+    { value: 'online', label: 'Online', icon: Package },
+  ];
+const [category, setCategory] = useState(null);
+  const categories = [
+    { value: 'electronics', label: 'Electronics' },
+    { value: 'groceries', label: 'Groceries' },
+    { value: 'clothing', label: 'Clothing' },
+  ];
 
 
   // Form states
@@ -126,6 +164,23 @@ function App() {
             <div className="flex flex-wrap gap-3">
 
 
+  
+  <FileUpload
+    label="Upload Product Image"
+    accept="image/*"
+    onChange={(files) => setFile(files[0])}
+/>
+  
+  
+  <FileUpload
+    label="Upload Gallery Images"
+    multiple
+    accept="image/*"
+    maxFiles={5}
+    onChange={(files) => setImages(files)}
+  />
+ 
+
               <Checkbox
                 label="I accept the terms and conditions"
                 checked={accepted}
@@ -163,6 +218,27 @@ function App() {
               <Button size="sm">Small</Button>
               <Button size="md">Medium</Button>
               <Button size="lg">Large</Button>
+            </div>
+
+            {/* Badges Showcase */}
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="success">Active</Badge>
+              <Badge variant="warning">Pending</Badge>
+              <Badge variant="danger">Out of Stock</Badge>
+
+              {/* With icons */}
+              <Badge variant="success" icon={CheckCircle}>
+                Completed
+              </Badge>
+
+              <Badge variant="warning" icon={AlertTriangle}>
+                Low Stock
+              </Badge>
+
+              <Badge variant="danger" icon={XCircle}>
+                Failed
+              </Badge>
+
             </div>
 
             <div className="flex flex-wrap gap-3">
@@ -383,6 +459,23 @@ function App() {
               Loading Modal
             </Button>
 
+            * // Basic usage
+ 
+  
+  <SearchBar
+    placeholder="Search products..."
+    value={query}
+    onChange={(e) => setQuery(e.target.value)}
+  />
+            // Min/Max dates
+            <DatePicker
+              label="Appointment Date"
+              min="2025-09-01"
+              max="2029-12-31"
+              value={appointmentDate}
+              onChange={(e) => setAppointmentDate(e.target.value)}
+            />
+
  <Select
     label="Payment Method"
     leftIcon={Tag}
@@ -584,9 +677,737 @@ function App() {
           <p className="text-gray-600">Please wait while we process your request...</p>
         </div>
       </Modal>
+        
+
+ 
+  
+  <Dropdown
+    label="Category"
+    options={categories}
+    value={category}
+    onChange={setCategory}
+  />
+
+ 
+  <Dropdown
+    label="Payment Method"
+    options={paymentOptions}
+    value={selectedPayment}
+    onChange={setSelectedPayment}
+    icon={Tag}
+  />
+
+  {/* // Searchable
+  <Dropdown
+    label="Search Product"
+    options={productOptions}
+    searchable
+    value={product}
+    onChange={setProduct}
+/>
+  
+  // Clearable
+  <Dropdown
+    label="Select User"
+    options={users}
+    value={selectedUser}
+    clearable
+    onChange={setSelectedUser}
+  /> */}
+
+  {/* // Variants and sizes
+  <Dropdown variant="filled" size="sm" label="Small" options={categories} />
+  <Dropdown variant="outline" size="md" label="Medium" options={categories} />
+  <Dropdown variant="ghost" size="lg" label="Large" options={categories} />
+
+  // Disabled
+  <Dropdown label="Disabled" disabled options={categories} />
+ */}
+  // POS specific: Filter by product category
+  {/* <Dropdown
+    label="Filter by Category"
+    options={[
+      { value: 'all', label: 'All Products' },
+      { value: 'low', label: 'Low Stock' },
+      { value: 'out', label: 'Out of Stock' },
+    ]}
+    value={filter}
+    onChange={setFilter}
+  /> */}
+
+  // POS specific: Select employee role
+  <Dropdown
+    label="User Role"
+    options={[
+      { value: 'admin', label: 'Admin' },
+      { value: 'manager', label: 'Manager' },
+      { value: 'cashier', label: 'Cashier' },
+    ]}
+    value={role}
+    onChange={setRole}
+/>
+  
+  // Inside Card
+  <Card>
+    <CardHeader title="Filter Products" />
+    <CardBody>
+      <Dropdown
+        label="Category"
+        options={categories}
+        value={category}
+        onChange={setCategory}
+        searchable
+      />
+    </CardBody>
+  </Card>
+ 
 
     </div>
   );
 }
 
 export default App;
+
+// src/App.jsx - Testing Table with Pagination
+// import { useState, useMemo } from 'react';
+// import Table from './components/common/Table';
+// import Pagination from './components/common/Pagination';
+// import Button from './components/common/Button';
+// import Input from './components/common/Input';
+// import Badge from './components/common/Badge';
+// import { Search, Edit, Trash2, Eye } from 'lucide-react';
+
+// // Mock data generator
+// const generateMockProducts = (count = 150) => {
+//   const categories = ['Electronics', 'Groceries', 'Clothing', 'Home & Garden', 'Sports'];
+//   const statuses = [true, false];
+  
+//   return Array.from({ length: count }, (_, index) => ({
+//     id: `prod-${index + 1}`,
+//     name: `Product ${index + 1}`,
+//     sku: `SKU${String(index + 1).padStart(5, '0')}`,
+//     category: categories[Math.floor(Math.random() * categories.length)],
+//     price: parseFloat((Math.random() * 500 + 10).toFixed(2)),
+//     cost: parseFloat((Math.random() * 300 + 5).toFixed(2)),
+//     stock: Math.floor(Math.random() * 100),
+//     active: statuses[Math.floor(Math.random() * statuses.length)],
+//     createdAt: new Date(Date.now() - Math.random() * 10000000000).toISOString(),
+//   }));
+// };
+
+// function App() {
+//   // Mock data
+//   const allProducts = useMemo(() => generateMockProducts(150), []);
+
+//   // Pagination state
+//   const [currentPage, setCurrentPage] = useState(1);
+//   const [pageSize, setPageSize] = useState(20);
+
+//   // Sorting state
+//   const [sortColumn, setSortColumn] = useState('name');
+//   const [sortDirection, setSortDirection] = useState('asc');
+
+//   // Selection state
+//   const [selectedRows, setSelectedRows] = useState([]);
+
+//   // Search/Filter state
+//   const [searchQuery, setSearchQuery] = useState('');
+
+//   // Filter and sort data
+//   const filteredProducts = useMemo(() => {
+//     let filtered = allProducts;
+
+//     // Apply search filter
+//     if (searchQuery) {
+//       filtered = filtered.filter(
+//         (product) =>
+//           product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+//           product.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
+//           product.category.toLowerCase().includes(searchQuery.toLowerCase())
+//       );
+//     }
+
+//     // Apply sorting
+//     filtered = [...filtered].sort((a, b) => {
+//       const aValue = a[sortColumn];
+//       const bValue = b[sortColumn];
+
+//       if (typeof aValue === 'string') {
+//         return sortDirection === 'asc'
+//           ? aValue.localeCompare(bValue)
+//           : bValue.localeCompare(aValue);
+//       }
+
+//       return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+//     });
+
+//     return filtered;
+//   }, [allProducts, searchQuery, sortColumn, sortDirection]);
+
+//   // Calculate pagination
+//   const totalItems = filteredProducts.length;
+//   const totalPages = Math.ceil(totalItems / pageSize);
+//   const startIndex = (currentPage - 1) * pageSize;
+//   const endIndex = startIndex + pageSize;
+//   const currentPageData = filteredProducts.slice(startIndex, endIndex);
+
+//   // Handlers
+//   const handleSort = (column, direction) => {
+//     setSortColumn(column);
+//     setSortDirection(direction);
+//   };
+
+//   const handlePageChange = (page) => {
+//     setCurrentPage(page);
+//     setSelectedRows([]); // Clear selection on page change
+//   };
+
+//   const handlePageSizeChange = (newSize) => {
+//     setPageSize(newSize);
+//     setCurrentPage(1); // Reset to first page
+//     setSelectedRows([]); // Clear selection
+//   };
+
+//   const handleSelectRow = (row) => {
+//     setSelectedRows((prev) =>
+//       prev.some((r) => r.id === row.id)
+//         ? prev.filter((r) => r.id !== row.id)
+//         : [...prev, row]
+//     );
+//   };
+
+//   const handleSelectAll = (checked) => {
+//     setSelectedRows(checked ? currentPageData : []);
+//   };
+
+//   const handleSearch = (e) => {
+//     setSearchQuery(e.target.value);
+//     setCurrentPage(1); // Reset to first page on search
+//   };
+
+//   const handleDeleteSelected = () => {
+//     alert(`Delete ${selectedRows.length} selected items`);
+//     setSelectedRows([]);
+//   };
+
+//   const handleRowClick = (row) => {
+//     console.log('Row clicked:', row);
+//     // Navigate to detail page or show modal
+//   };
+
+//   // Table columns definition
+//   const columns = [
+//     {
+//       key: 'sku',
+//       header: 'SKU',
+//       sortable: true,
+//       width: '120px',
+//     },
+//     {
+//       key: 'name',
+//       header: 'Product Name',
+//       sortable: true,
+//       render: (value, row) => (
+//         <div className="flex flex-col">
+//           <span className="font-medium text-gray-900">{value}</span>
+//           <span className="text-xs text-gray-500">{row.category}</span>
+//         </div>
+//       ),
+//     },
+//     {
+//       key: 'price',
+//       header: 'Price',
+//       sortable: true,
+//       align: 'right',
+//       width: '100px',
+//       render: (value) => (
+//         <span className="font-semibold text-gray-900">₪{value.toFixed(2)}</span>
+//       ),
+//     },
+//     {
+//       key: 'cost',
+//       header: 'Cost',
+//       sortable: true,
+//       align: 'right',
+//       width: '100px',
+//       render: (value) => (
+//         <span className="text-gray-600">₪{value.toFixed(2)}</span>
+//       ),
+//     },
+//     {
+//       key: 'stock',
+//       header: 'Stock',
+//       sortable: true,
+//       align: 'center',
+//       width: '100px',
+//       render: (value) => {
+//         let variant = 'success';
+//         if (value === 0) variant = 'danger';
+//         else if (value < 20) variant = 'warning';
+
+//         return (
+//           <span
+//             className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+//               variant === 'success'
+//                 ? 'bg-success-100 text-success-800'
+//                 : variant === 'warning'
+//                 ? 'bg-warning-100 text-warning-800'
+//                 : 'bg-danger-100 text-danger-800'
+//             }`}
+//           >
+//             {value}
+//           </span>
+//         );
+//       },
+//     },
+//     {
+//       key: 'active',
+//       header: 'Status',
+//       sortable: true,
+//       align: 'center',
+//       width: '100px',
+//       render: (value) => (
+//         <span
+//           className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+//             value
+//               ? 'bg-success-100 text-success-800'
+//               : 'bg-gray-100 text-gray-800'
+//           }`}
+//         >
+//           {value ? 'Active' : 'Inactive'}
+//         </span>
+//       ),
+//     },
+//     {
+//       key: 'actions',
+//       header: 'Actions',
+//       align: 'center',
+//       width: '150px',
+//       render: (_, row) => (
+//         <div className="flex gap-2 justify-center">
+//           <button
+//             onClick={(e) => {
+//               e.stopPropagation();
+//               alert(`View ${row.name}`);
+//             }}
+//             className="text-primary-600 hover:text-primary-800 p-1"
+//             title="View"
+//           >
+//             <Eye className="h-4 w-4" />
+//           </button>
+//           <button
+//             onClick={(e) => {
+//               e.stopPropagation();
+//               alert(`Edit ${row.name}`);
+//             }}
+//             className="text-gray-600 hover:text-gray-800 p-1"
+//             title="Edit"
+//           >
+//             <Edit className="h-4 w-4" />
+//           </button>
+//           <button
+//             onClick={(e) => {
+//               e.stopPropagation();
+//               alert(`Delete ${row.name}`);
+//             }}
+//             className="text-danger-600 hover:text-danger-800 p-1"
+//             title="Delete"
+//           >
+//             <Trash2 className="h-4 w-4" />
+//           </button>
+//         </div>
+//       ),
+//     },
+//   ];
+
+//   return (
+//     <div className="min-h-screen bg-gray-50 p-8">
+//       <div className="max-w-7xl mx-auto">
+//         {/* Header */}
+//         <div className="mb-6">
+//           <h1 className="text-3xl font-bold text-gray-900 mb-2">
+//             Products Inventory
+//           </h1>
+//           <p className="text-gray-600">
+//             Manage your product catalog with sorting, filtering, and pagination
+//           </p>
+//         </div>
+
+//         {/* Toolbar */}
+//         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+//           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+//             {/* Search */}
+//             <div className="w-full sm:w-96">
+//               <Input
+//                 placeholder="Search products..."
+//                 leftIcon={Search}
+//                 value={searchQuery}
+//                 onChange={handleSearch}
+//               />
+//             </div>
+
+//             {/* Actions */}
+//             <div className="flex gap-2">
+//               {selectedRows.length > 0 && (
+//                 <Button
+//                   variant="danger"
+//                   size="sm"
+//                   icon={Trash2}
+//                   onClick={handleDeleteSelected}
+//                 >
+//                   Delete ({selectedRows.length})
+//                 </Button>
+//               )}
+//               <Button variant="primary" size="sm">
+//                 Add Product
+//               </Button>
+//             </div>
+//           </div>
+//         </div>
+
+//         {/* Table Card */}
+//         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+//           <Table
+//             columns={columns}
+//             data={currentPageData}
+//             sortable
+//             sortColumn={sortColumn}
+//             sortDirection={sortDirection}
+//             onSort={handleSort}
+//             selectable
+//             selectedRows={selectedRows}
+//             onSelectRow={handleSelectRow}
+//             onSelectAll={handleSelectAll}
+//             onRowClick={handleRowClick}
+//             hover
+//             emptyMessage={
+//               searchQuery
+//                 ? `No products found matching "${searchQuery}"`
+//                 : 'No products available'
+//             }
+//           />
+
+//           {/* Pagination */}
+//           <div className="px-6 py-4 border-t border-gray-200">
+//             <Pagination
+//               currentPage={currentPage}
+//               totalPages={totalPages}
+//               totalItems={totalItems}
+//               pageSize={pageSize}
+//               onPageChange={handlePageChange}
+//               onPageSizeChange={handlePageSizeChange}
+//             />
+//           </div>
+//         </div>
+
+//         {/* Stats Footer */}
+//         <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+//           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+//             <p className="text-sm text-gray-600">Total Products</p>
+//             <p className="text-2xl font-bold text-gray-900">{allProducts.length}</p>
+//           </div>
+//           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+//             <p className="text-sm text-gray-600">Filtered Results</p>
+//             <p className="text-2xl font-bold text-gray-900">{totalItems}</p>
+//           </div>
+//           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+//             <p className="text-sm text-gray-600">Selected Items</p>
+//             <p className="text-2xl font-bold text-gray-900">{selectedRows.length}</p>
+//           </div>
+//         </div>
+//       </div>
+//     </div>
+//   );
+// }
+
+// export default App;
+
+
+// // For Tabs Component Testing
+//  import { Tabs, TabsList, TabsTrigger, TabsContent } from './components/common/Tabs';
+//   import { Package, ShoppingCart, Users, BarChart, Settings } from 'lucide-react';
+//   import Badge from './components/common/Badge';
+  
+//   export function App() {
+//   return (
+//   // Basic usage (line variant - default)
+//   // <div className="min-h-screen min-w-screen bg-gray-50 p-8">
+//   // <Tabs defaultValue="products">
+//   //   <TabsList>
+//   //     <TabsTrigger value="products">Products</TabsTrigger>
+//   //     <TabsTrigger value="sales">Sales</TabsTrigger>
+//   //     <TabsTrigger value="customers">Customers</TabsTrigger>
+//   //   </TabsList>
+
+//   //   <TabsContent value="products">
+//   //     <div className="p-4">
+//   //       <h3 className="text-lg font-semibold mb-2">Products Overview</h3>
+//   //       <p>Manage your product inventory here.</p>
+//   //     </div>
+//   //   </TabsContent>
+
+//   //   <TabsContent value="sales">
+//   //     <div className="p-4">
+//   //       <h3 className="text-lg font-semibold mb-2">Sales Dashboard</h3>
+//   //       <p>View your sales analytics and reports.</p>
+//   //     </div>
+//   //   </TabsContent>
+
+//   //   <TabsContent value="customers">
+//   //     <div className="p-4">
+//   //       <h3 className="text-lg font-semibold mb-2">Customer Management</h3>
+//   //       <p>Manage your customer database.</p>
+//   //     </div>
+//   //   </TabsContent>
+//   // </Tabs>
+//   //</div>
+// <div className="min-h-screen min-w-screen bg-gray-50 p-8">
+//      <Tabs defaultValue="all">
+//    <TabsList>
+//       <TabsTrigger 
+//         value="all" 
+//         badge={<Badge variant="gray" size="xs">24</Badge>}
+//       >
+//        All Orders
+//       </TabsTrigger>
+//       <TabsTrigger 
+//         value="pending" 
+//         badge={<Badge variant="warning" size="xs">5</Badge>}
+//       >
+//         Pending
+//       </TabsTrigger>
+//       <TabsTrigger 
+//         value="completed" 
+//         badge={<Badge variant="success" size="xs">18</Badge>}
+//       >
+//         Completed
+//       </TabsTrigger>
+//       <TabsTrigger 
+//         value="cancelled" 
+//         badge={<Badge variant="danger" size="xs">1</Badge>}
+//       >
+//         Cancelled
+//       </TabsTrigger>
+//     </TabsList>
+
+//     <TabsContent value="all">All orders list...</TabsContent>
+//     <TabsContent value="pending">Pending orders...</TabsContent>
+//     <TabsContent value="completed">Completed orders...</TabsContent>
+//     <TabsContent value="cancelled">Cancelled orders...</TabsContent>
+//   </Tabs>
+
+// </div>
+//   );
+// }
+
+//   export default App;
+
+//   // With icons
+//  * <Tabs defaultValue="products">
+//  *   <TabsList>
+//  *     <TabsTrigger value="products" icon={Package}>
+//  *       Products
+//  *     </TabsTrigger>
+//  *     <TabsTrigger value="sales" icon={ShoppingCart}>
+//  *       Sales
+//  *     </TabsTrigger>
+//  *     <TabsTrigger value="customers" icon={Users}>
+//  *       Customers
+//  *     </TabsTrigger>
+//  *     <TabsTrigger value="analytics" icon={BarChart}>
+//  *       Analytics
+//  *     </TabsTrigger>
+//  *   </TabsList>
+//  *   
+//  *   <TabsContent value="products">Products content...</TabsContent>
+//  *   <TabsContent value="sales">Sales content...</TabsContent>
+//  *   <TabsContent value="customers">Customers content...</TabsContent>
+//  *   <TabsContent value="analytics">Analytics content...</TabsContent>
+//  * </Tabs>
+//  * 
+//  * // With badges (notification counts)
+//  * <Tabs defaultValue="all">
+//  *   <TabsList>
+//  *     <TabsTrigger 
+//  *       value="all" 
+//  *       badge={<Badge variant="gray" size="xs">24</Badge>}
+//  *     >
+//  *       All Orders
+//  *     </TabsTrigger>
+//  *     <TabsTrigger 
+//  *       value="pending" 
+//  *       badge={<Badge variant="warning" size="xs">5</Badge>}
+//  *     >
+//  *       Pending
+//  *     </TabsTrigger>
+//  *     <TabsTrigger 
+//  *       value="completed" 
+//  *       badge={<Badge variant="success" size="xs">18</Badge>}
+//  *     >
+//  *       Completed
+//  *     </TabsTrigger>
+//  *     <TabsTrigger 
+//  *       value="cancelled" 
+//  *       badge={<Badge variant="danger" size="xs">1</Badge>}
+//  *     >
+//  *       Cancelled
+//  *     </TabsTrigger>
+//  *   </TabsList>
+//  *   
+//  *   <TabsContent value="all">All orders list...</TabsContent>
+//  *   <TabsContent value="pending">Pending orders...</TabsContent>
+//  *   <TabsContent value="completed">Completed orders...</TabsContent>
+//  *   <TabsContent value="cancelled">Cancelled orders...</TabsContent>
+//  * </Tabs>
+//  * 
+//  * // Enclosed variant (button-style tabs)
+//  * <Tabs defaultValue="overview">
+//  *   <TabsList variant="enclosed">
+//  *     <TabsTrigger value="overview">Overview</TabsTrigger>
+//  *     <TabsTrigger value="details">Details</TabsTrigger>
+//  *     <TabsTrigger value="history">History</TabsTrigger>
+//  *   </TabsList>
+//  *   
+//  *   <TabsContent value="overview">Overview content...</TabsContent>
+//  *   <TabsContent value="details">Details content...</TabsContent>
+//  *   <TabsContent value="history">History content...</TabsContent>
+//  * </Tabs>
+//  * 
+//  * // Pills variant (rounded pill-style tabs)
+//  * <Tabs defaultValue="active">
+//  *   <TabsList variant="pills">
+//  *     <TabsTrigger value="active" icon={Package}>Active</TabsTrigger>
+//  *     <TabsTrigger value="inactive">Inactive</TabsTrigger>
+//  *     <TabsTrigger value="archived">Archived</TabsTrigger>
+//  *   </TabsList>
+//  *   
+//  *   <TabsContent value="active">Active products...</TabsContent>
+//  *   <TabsContent value="inactive">Inactive products...</TabsContent>
+//  *   <TabsContent value="archived">Archived products...</TabsContent>
+//  * </Tabs>
+//  * 
+//  * // Controlled tabs
+//  * const [activeTab, setActiveTab] = useState('products');
+//  * 
+//  * <Tabs value={activeTab} onValueChange={setActiveTab}>
+//  *   <TabsList>
+//  *     <TabsTrigger value="products">Products</TabsTrigger>
+//  *     <TabsTrigger value="inventory">Inventory</TabsTrigger>
+//  *   </TabsList>
+//  *   
+//  *   <TabsContent value="products">Products content...</TabsContent>
+//  *   <TabsContent value="inventory">Inventory content...</TabsContent>
+//  * </Tabs>
+//  * 
+//  * <Button onClick={() => setActiveTab('inventory')}>
+//  *   Go to Inventory Tab
+//  * </Button>
+//  * 
+//  * // With disabled tab
+//  * <Tabs defaultValue="basic">
+//  *   <TabsList>
+//  *     <TabsTrigger value="basic">Basic Info</TabsTrigger>
+//  *     <TabsTrigger value="advanced">Advanced</TabsTrigger>
+//  *     <TabsTrigger value="settings" disabled>
+//  *       Settings (Coming Soon)
+//  *     </TabsTrigger>
+//  *   </TabsList>
+//  *   
+//  *   <TabsContent value="basic">Basic info...</TabsContent>
+//  *   <TabsContent value="advanced">Advanced settings...</TabsContent>
+//  * </Tabs>
+//  * 
+//  * // Full width tabs
+//  * <Tabs defaultValue="tab1">
+//  *   <TabsList fullWidth>
+//  *     <TabsTrigger value="tab1" className="flex-1">Tab 1</TabsTrigger>
+//  *     <TabsTrigger value="tab2" className="flex-1">Tab 2</TabsTrigger>
+//  *     <TabsTrigger value="tab3" className="flex-1">Tab 3</TabsTrigger>
+//  *   </TabsList>
+//  *   
+//  *   <TabsContent value="tab1">Content 1...</TabsContent>
+//  *   <TabsContent value="tab2">Content 2...</TabsContent>
+//  *   <TabsContent value="tab3">Content 3...</TabsContent>
+//  * </Tabs>
+//  * 
+//  * // POS specific: Product management sections
+//  * <Tabs defaultValue="inventory">
+//  *   <TabsList>
+//  *     <TabsTrigger value="inventory" icon={Package}>
+//  *       Inventory
+//  *     </TabsTrigger>
+//  *     <TabsTrigger value="categories" icon={Tag}>
+//  *       Categories
+//  *     </TabsTrigger>
+//  *     <TabsTrigger value="suppliers" icon={Truck}>
+//  *       Suppliers
+//  *     </TabsTrigger>
+//  *     <TabsTrigger value="pricing" icon={DollarSign}>
+//  *       Pricing
+//  *     </TabsTrigger>
+//  *   </TabsList>
+//  *   
+//  *   <TabsContent value="inventory">
+//  *     {/* Product inventory table */
+// //  *   </TabsContent>
+// //  *   <TabsContent value="categories">
+// //  *     {/* Category management */}
+// //  *   </TabsContent>
+// //  *   <TabsContent value="suppliers">
+// //  *     {/* Supplier list */}
+// //  *   </TabsContent>
+// //  *   <TabsContent value="pricing">
+// //  *     {/* Pricing rules */}
+// //  *   </TabsContent>
+// //  * </Tabs>
+// //  * 
+// //  * // POS specific: Transaction history filters
+// //  * <Tabs defaultValue="today">
+// //  *   <TabsList variant="pills">
+// //  *     <TabsTrigger value="today">Today</TabsTrigger>
+// //  *     <TabsTrigger value="week">This Week</TabsTrigger>
+// //  *     <TabsTrigger value="month">This Month</TabsTrigger>
+// //  *     <TabsTrigger value="year">This Year</TabsTrigger>
+// //  *     <TabsTrigger value="all">All Time</TabsTrigger>
+// //  *   </TabsList>
+// //  *   
+// //  *   <TabsContent value="today">
+// //  *     {/* Today's transactions */}
+// //  *   </TabsContent>
+// //  *   <TabsContent value="week">
+// //  *     {/* This week's transactions */}
+// //  *   </TabsContent>
+// //  *   {/* ... other contents */}
+// //  * </Tabs>
+// //  * 
+// //  * // POS specific: Reports dashboard
+// //  * <Tabs defaultValue="sales">
+// //  *   <TabsList>
+// //  *     <TabsTrigger value="sales" icon={TrendingUp}>
+// //  *       Sales Report
+// //  *     </TabsTrigger>
+// //  *     <TabsTrigger value="inventory" icon={Package}>
+// //  *       Inventory Report
+// //  *     </TabsTrigger>
+// //  *     <TabsTrigger value="customers" icon={Users}>
+// //  *       Customer Report
+// //  *     </TabsTrigger>
+// //  *     <TabsTrigger value="financial" icon={DollarSign}>
+// //  *       Financial Report
+// //  *     </TabsTrigger>
+// //  *   </TabsList>
+// //  *   
+// //  *   <TabsContent value="sales">
+// //  *     {/* Sales charts and statistics */}
+// //  *   </TabsContent>
+// //  *   <TabsContent value="inventory">
+// //  *     {/* Inventory analytics */}
+// //  *   </TabsContent>
+// //  *   <TabsContent value="customers">
+// //  *     {/* Customer insights */}
+// //  *   </TabsContent>
+// //  *   <TabsContent value="financial">
+// //  *     {/* Financial overview */}
+// //  *   </TabsContent>
+// //  * </Tabs>
+// //  */

@@ -81,6 +81,35 @@
   --shadow-button: 0 2px 4px rgb(0 0 0 / 0.1);
   --shadow-hover: 0 10px 15px -3px rgb(0 0 0 / 0.1);
 }
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideOutRight {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+.animate-slideInRight {
+  animation: slideInRight 300ms ease-out;
+}
+
+.animate-slideOutRight {
+  animation: slideOutRight 300ms ease-in;
+}
 
 /* Custom component classes */
 @layer components {

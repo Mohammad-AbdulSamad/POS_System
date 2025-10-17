@@ -13,6 +13,13 @@ import { Package, User, Tag } from 'lucide-react';
 import DatePicker from './components/common/DatePicker';
 import SearchBar from './components/common/SearchBar';  
 import FileUpload from './components/common/FileUpload';
+import ConfirmDialog from './components/common/ConfirmDialog';
+import Tooltip from './components/common/Tooltip';
+import { ToastProvider, useToast } from './components/common/Toast';
+import Alert from './components/common/Alert';
+import Spinner from './components/common/Spinner';
+import EmptyState from './components/common/EmptyState';
+
 import { 
   AlertTriangle, 
   Plus, 
@@ -31,12 +38,19 @@ import {
   
   XCircle, 
   Clock,
- 
+ PackageOpen,
   TrendingUp 
 
 } from 'lucide-react';
 
 function App() {
+
+  const toast = useToast();
+  const [isOpen, setIsOpen] = useState(false);
+  
+  const handleSuccessToast = () => {
+    toast.success('Operation successful!');
+  };
 
 // Multiple files
   const [images, setImages] = useState([]);
@@ -132,7 +146,9 @@ const [category, setCategory] = useState(null);
   };
 
   return (
+    
     <div className="min-h-screen bg-gray-50 p-8">
+       
       <div className="max-w-6xl mx-auto space-y-8">
         
         {/* Header */}
@@ -163,8 +179,60 @@ const [category, setCategory] = useState(null);
           <div className="space-y-3">
             <div className="flex flex-wrap gap-3">
 
+              <EmptyState
+ icon={PackageOpen}
+    title="No products available"
+    description="Start by adding your first product to the inventory"
+  />
+
+              <Tooltip content="This is a helpful tooltip">
+   <Button onClick={handleSuccessToast}>Hover me</Button>
+  </Tooltip>
+  
+  // Different positions
+  <Tooltip content="Top tooltip" position="bottom">
+    <Button>Top</Button>
+  </Tooltip>
 
   
+ <Button onClick={() => setIsOpen(true)}>Delete</Button>
+  
+  <ConfirmDialog
+    isOpen={isOpen}
+   onClose={() => setIsOpen(false)}
+   onConfirm={() => {
+     console.log('Confirmed!');
+     // Perform delete action
+   }}
+   title="Delete Product"
+   description="Are you sure you want to delete this product? This action cannot be undone."
+   confirmText="Delete"
+   variant="danger"
+   icon={Trash2}
+  />
+ 
+
+<Alert variant="success">
+   Your changes have been saved successfully.
+  </Alert>
+
+<Alert variant="danger">
+   An error occurred. Please try again.
+</Alert>
+
+ <Alert variant="warning">
+   This action cannot be undone.
+</Alert>
+
+<Alert variant="info">
+   New updates are available.
+</Alert>
+
+ // With title
+ <Alert variant="success" title="Success!">
+   Your product has been added to the inventory.
+ </Alert>
+
   <FileUpload
     label="Upload Product Image"
     accept="image/*"
@@ -763,6 +831,7 @@ const [category, setCategory] = useState(null);
  
 
     </div>
+   
   );
 }
 

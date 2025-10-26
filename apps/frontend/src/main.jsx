@@ -14,7 +14,7 @@ if (rootElement) {
     <ToastProvider position="top-right" maxToasts={5}>
       
       <StrictMode>
-        <MainTemp />
+        <Temp />
       </StrictMode>
     </ToastProvider>
   );

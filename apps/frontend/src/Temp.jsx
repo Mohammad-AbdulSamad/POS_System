@@ -6,51 +6,12 @@ import Button from './components/common/Button';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import DashboardPage from './pages/dashboard/DashboardPage';
-
+import POSPage from './pages/pos/POSPage';
 const Temp = () => {
-  const user = {
-    name: 'John Doe',
-    role: 'Manager',
-    avatar: 'JD'
-  };
-
-  const handleSearch = (query) => {
-    console.log('Searching for:', query);
-  };
-
-   const [searchQuery, setSearchQuery] = useState('');
-
+  
   return (
-    <MainLayout
-          user={{ name: 'John Doe', role: 'Manager', avatar: 'JD' }}
-          currentPath="/products"
-          notificationCount={5}
-          onSearch={(query) => setSearchQuery(query)}
-        >
-          {/* Breadcrumbs */}
-          <Breadcrumbs 
-            items={[
-              { label: 'Dashboard', href: '/dashboard' },
-              { label: 'Products' }
-            ]}
-          />
-
-          {/* Page Header */}
-          <PageHeader 
-            title="Products"
-            description="Manage your product inventory"
-            actions={
-              <div className="flex gap-2">
-                <Button variant="outline">Import</Button>
-                <Button variant="primary" icon={Plus}>Add Product</Button>
-              </div>
-            }
-          />
-
-          {/* Page Content */}
-          <DashboardPage/>
-        </MainLayout>
-      );
+    <POSPage />
+  );
 };
 
 export default Temp;

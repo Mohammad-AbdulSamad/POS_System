@@ -5,6 +5,7 @@ import Breadcrumbs from './components/layout/Breadcrumbs';
 import Button from './components/common/Button';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
+import DashboardPage from './pages/dashboard/DashboardPage';
 
 const Temp = () => {
   const user = {
@@ -47,12 +48,11 @@ const Temp = () => {
           />
 
           {/* Page Content */}
-          <div className="mt-6 space-y-6">
-            {/* Filters, table, etc. */}
-          </div>
+          <DashboardPage/>
         </MainLayout>
       );
-    }
+};
+
 export default Temp;
 
 

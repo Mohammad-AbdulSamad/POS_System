@@ -1,5 +1,6 @@
 // src/pages/auth/LoginPage.jsx
 import { useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import AuthLayout from '../../components/layout/AuthLayout';
 import LoginForm from '../../components/auth/LoginForm';
@@ -16,32 +17,30 @@ import LoginForm from '../../components/auth/LoginForm';
 
 const LoginPage = () => {
   const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
-      // Redirect to dashboard or intended page
-      window.location.href = '/dashboard';
+      const redirectTo = searchParams.get('redirect') || '/';
+      navigate(redirectTo, { replace: true });
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, navigate, searchParams]);
 
   /**
    * Handle successful login
    */
   const handleLoginSuccess = () => {
-    // Get redirect URL from query params if exists
-    const urlParams = new URLSearchParams(window.location.search);
-    const redirectTo = urlParams.get('redirect') || '/dashboard';
-    
-    // Redirect to dashboard or intended page
-    window.location.href = redirectTo;
+    const redirectTo = searchParams.get('redirect') || '/';
+    navigate(redirectTo, { replace: true });
   };
 
   /**
    * Handle forgot password click
    */
   const handleForgotPassword = () => {
-    window.location.href = '/forgot-password';
+    navigate('/forgot-password');
   };
 
   return (

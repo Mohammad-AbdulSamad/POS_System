@@ -1,6 +1,7 @@
 // src/components/auth/LoginForm.jsx
 import { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
+import { useToast } from '../common/Toast';
 import { validateEmail, validatePassword } from '../../utils/validators';
 import Input from '../common/Input';
 import Button from '../common/Button';
@@ -20,6 +21,7 @@ import { Mail, Lock } from 'lucide-react';
 
 const LoginForm = ({ onSuccess, onForgotPassword }) => {
   const { login } = useAuth();
+  const toast = useToast();
 
   // Form state
   const [formData, setFormData] = useState({
@@ -86,32 +88,60 @@ const LoginForm = ({ onSuccess, onForgotPassword }) => {
 
   /**
    * Handle form submission
+   * ✅ CRITICAL FIX: Prevent all default behaviors
    */
   const handleSubmit = async (e) => {
+    // ✅ Stop ALL default form behaviors immediately
     e.preventDefault();
+    e.stopPropagation();
+    
+    console.log('🔵 Form submitted');
+    
+    // Clear any previous errors
     setApiError('');
 
     // Validate form
     if (!validateForm()) {
+      console.log('❌ Validation failed');
       return;
     }
 
+    console.log('✅ Validation passed, attempting login...');
     setLoading(true);
 
     try {
       await login(formData.email, formData.password, formData.rememberMe);
+      console.log('✅ Login successful');
+      toast.success('Login successful!');
       
       // Call success callback
-      onSuccess?.();
+      if (onSuccess) {
+        onSuccess();
+      }
     } catch (error) {
-      setApiError(error.message || 'Login failed. Please try again.');
+      // ✅ CRITICAL: Show error in form and as toast
+      console.log('❌ Login failed:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Login failed';
+      
+      // Set the error state (this should persist now)
+      setApiError(errorMessage);
+      toast.error(errorMessage);
+      
+      console.log('Error set to:', errorMessage);
     } finally {
       setLoading(false);
+      console.log('🔵 Login attempt complete');
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form 
+      onSubmit={handleSubmit} 
+      className="space-y-4"
+      // ✅ Additional safety: Prevent any accidental form action
+      action="javascript:void(0);"
+      method="post"
+    >
       {/* API Error Alert */}
       {apiError && (
         <Alert variant="danger" closable onClose={() => setApiError('')}>
@@ -155,6 +185,13 @@ const LoginForm = ({ onSuccess, onForgotPassword }) => {
         disabled={loading}
         required
         autoComplete="current-password"
+        // ✅ Prevent Enter key from submitting if handled elsewhere
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            handleSubmit(e);
+          }
+        }}
       />
 
       {/* Remember Me & Forgot Password */}

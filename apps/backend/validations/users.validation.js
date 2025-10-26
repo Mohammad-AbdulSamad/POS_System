@@ -12,7 +12,7 @@ const limitSchema = Joi.number().integer().min(1).max(500).default(50);
 
 const VALID_ROLES = ["ADMIN", "MANAGER", "CASHIER", "STOCK_MANAGER"];
 
-const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+//const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
 
 // -------------------------
 // Get all users (query)
@@ -43,11 +43,11 @@ export const createUserSchema = Joi.object({
     "any.required": "Email is required"
   }),
   name: Joi.string().trim().min(1).max(100).optional(),
-  password: Joi.string().pattern(passwordRegex).required().messages({
-    "string.pattern.base":
-      "Password must be at least 8 characters and include uppercase, lowercase and number",
-    "any.required": "Password is required"
-  }),
+  // password: Joi.string().pattern(passwordRegex).required().messages({
+  //   "string.pattern.base":
+  //     "Password must be at least 8 characters and include uppercase, lowercase and number",
+  //   "any.required": "Password is required"
+  // }),
   phone: Joi.string().trim().max(30).optional(),
   role: Joi.string().valid(...VALID_ROLES).optional().default("CASHIER"),
   active: Joi.boolean().optional()
@@ -63,10 +63,10 @@ export const updateUserSchema = Joi.object({
     "string.email": "Email must be a valid email address"
   }),
   name: Joi.string().trim().min(1).max(100).allow(null).optional(),
-  password: Joi.string().pattern(passwordRegex).optional().messages({
-    "string.pattern.base":
-      "Password must be at least 8 characters and include uppercase, lowercase and number"
-  }),
+  // password: Joi.string().pattern(passwordRegex).optional().messages({
+  //   "string.pattern.base":
+  //     "Password must be at least 8 characters and include uppercase, lowercase and number"
+  // }),
   phone: Joi.string().trim().max(30).allow(null).optional(),
   role: Joi.string().valid(...VALID_ROLES).optional(),
   active: Joi.boolean().optional()
@@ -81,14 +81,14 @@ export const updateUserSchema = Joi.object({
 // -------------------------
 export const changePasswordSchema = Joi.object({
   id,
-  currentPassword: Joi.string().required().messages({
-    "any.required": "Current password is required"
-  }),
-  newPassword: Joi.string().pattern(passwordRegex).required().messages({
-    "string.pattern.base":
-      "New password must be at least 8 characters and include uppercase, lowercase and number",
-    "any.required": "New password is required"
-  })
+  // currentPassword: Joi.string().required().messages({
+  //   "any.required": "Current password is required"
+  // }),
+  // newPassword: Joi.string().pattern(passwordRegex).required().messages({
+  //   "string.pattern.base":
+  //     "New password must be at least 8 characters and include uppercase, lowercase and number",
+  //   "any.required": "New password is required"
+  // })
 });
 
 // -------------------------
@@ -96,11 +96,11 @@ export const changePasswordSchema = Joi.object({
 // -------------------------
 export const resetPasswordSchema = Joi.object({
   id,
-  newPassword: Joi.string().pattern(passwordRegex).required().messages({
-    "string.pattern.base":
-      "New password must be at least 8 characters and include uppercase, lowercase and number",
-    "any.required": "New password is required"
-  })
+  // newPassword: Joi.string().pattern(passwordRegex).required().messages({
+  //   "string.pattern.base":
+  //     "New password must be at least 8 characters and include uppercase, lowercase and number",
+  //   "any.required": "New password is required"
+  // })
 });
 
 // -------------------------

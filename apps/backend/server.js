@@ -77,6 +77,7 @@ import suppliersRoutes from './routes/suppliers.routes.js';
 import taxRatesRoutes from './routes/taxRates.routes.js';
 import transactionLinesRoutes from './routes/transactionLines.routes.js';
 import transactionsRoutes from './routes/transactions.routes.js';
+import dashboardRoutes from './routes/dashboard.routes.js';
 
 // Load environment variables
 dotenv.config();
@@ -145,6 +146,7 @@ app.use('/api/suppliers', suppliersRoutes);
 app.use('/api/taxrates', taxRatesRoutes);
 app.use('/api/transaction-lines', transactionLinesRoutes);
 app.use('/api/transactions', transactionsRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // =====================================
 // ERROR HANDLING

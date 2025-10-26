@@ -23,7 +23,7 @@ const MainLayout = ({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // desktop collapse/expand
 
   return (
-    <div className={clsx('min-h-screen bg-gray-50 flex', className)}>
+    <div className={clsx('min-h-screen min-w-screen bg-gray-50 flex', className)}>
       {/* Sidebar */}
       <Sidebar 
         isOpen={sidebarOpen}
@@ -49,7 +49,7 @@ const MainLayout = ({
         />
 
         {/* Page content */}
-        <main className="p-4 lg:p-6 flex-1">
+        <main className="p-4 lg:p-6 flex-1 w-full">
           {children}
         </main>
       </div>

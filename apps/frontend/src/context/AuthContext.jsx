@@ -26,9 +26,16 @@ export const AuthProvider = ({ children }) => {
         if (authenticated && storedUser) {
           setUser(storedUser);
           setIsAuthenticated(true);
+        } else {
+          // ✅ Ensure clean state if no valid auth
+          setUser(null);
+          setIsAuthenticated(false);
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
+        // ✅ Set clean state on error
+        setUser(null);
+        setIsAuthenticated(false);
       } finally {
         setLoading(false);
       }
@@ -45,11 +52,21 @@ export const AuthProvider = ({ children }) => {
    */
   const login = async (email, password, rememberMe = false) => {
     try {
-      const data = await authService.login(email, password, rememberMe);
+      const data = await authService.login({
+        email: email,
+        password: password,
+        rememberMe: rememberMe
+      });
+      
+      // ✅ Only set auth state on successful login
       setUser(data.user);
       setIsAuthenticated(true);
       return data;
     } catch (error) {
+      // ✅ CRITICAL FIX: Clear auth state on login failure
+      setUser(null);
+      setIsAuthenticated(false);
+      console.error('Login failed:', error.message);
       throw error;
     }
   };
@@ -65,6 +82,9 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(true);
       return data;
     } catch (error) {
+      // ✅ Clear auth state on registration failure
+      setUser(null);
+      setIsAuthenticated(false);
       throw error;
     }
   };
@@ -75,13 +95,12 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       await authService.logout();
-      setUser(null);
-      setIsAuthenticated(false);
     } catch (error) {
-      // Still clear state even if API call fails
+      console.error('Logout error:', error);
+    } finally {
+      // ✅ Always clear state on logout, even if API call fails
       setUser(null);
       setIsAuthenticated(false);
-      throw error;
     }
   };
 

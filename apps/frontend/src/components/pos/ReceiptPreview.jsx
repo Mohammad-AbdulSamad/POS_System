@@ -1,5 +1,5 @@
 // src/components/pos/ReceiptPreview.jsx
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import Modal from '../common/Modal';
 import Button from '../common/Button';
 import Receipt from './Receipt';
@@ -30,6 +30,13 @@ const ReceiptPreview = ({
   className = '',
 }) => {
   const receiptRef = useRef(null);
+
+
+  useEffect(() => {
+    console.log('Hello world //////////////////////////////////')
+    console.log(transaction);
+  }
+  ,[])
 
   const handlePrint = () => {
     if (onPrint) {
@@ -87,6 +94,7 @@ const ReceiptPreview = ({
   ) : null;
 
   return (
+    
     <Modal
       isOpen={isOpen}
       onClose={onClose}

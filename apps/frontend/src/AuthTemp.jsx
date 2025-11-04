@@ -8,18 +8,16 @@ import LoginPage from '../src/pages/auth/LoginPage.jsx';
    export default function AuthTemp() {
      return (
        <AuthProvider>
-         <ToastProvider>
            <BrowserRouter>
              <Routes>
                <Route path="/login" element={<LoginPage />} />
               
-               <Route path="/home" element={<DashboardPage />} />
-               <Route path="/" element={<DashboardPage />} />
+               <Route path="/pos" element={<DashboardPage />} />
+               <Route path="/dashboard" element={<DashboardPage />} />
 
 
               </Routes>
              </BrowserRouter>
-            </ToastProvider>
          </AuthProvider>
        );
      }

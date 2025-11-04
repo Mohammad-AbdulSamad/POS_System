@@ -178,7 +178,8 @@
   }
 
   .btn-outline:hover {
-    background-color: var(--color-primary-500);
+    background-color: var(--color-primary-100);
+    
     /* color: white; */
   }
 

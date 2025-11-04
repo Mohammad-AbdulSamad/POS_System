@@ -1,4 +1,7 @@
-// src/pages/POSPage.jsx
+
+//////////////////////////////////////////////////////////////////////////////////////
+// Second Man
+// src/pages/POSPage.jsx - REFACTORED with Hooks & Context
 import { useState, useEffect } from 'react';
 import MainLayout from '../../components/layout/MainLayout';
 import ProductSearch from '../../components/pos/ProductSearch';
@@ -10,90 +13,44 @@ import CustomerSearch from '../../components/pos/CustomerSearch';
 import QuickProductGrid from '../../components/pos/QuickProductGrid';
 import ReceiptPreview from '../../components/pos/ReceiptPreview';
 import Button from '../../components/common/Button';
-import Card, { CardBody } from '../../components/common/Card';
-import Alert from '../../components/common/Alert';
-import { useToast } from '../../components/common/Toast';
+import Card from '../../components/common/Card';
+import {DEFAULT_TAX_RATE} from '../../config/constants';
+
+// Hooks
+import { usePOS } from '../../hooks/usePOS';
+import { useTransactions } from '../../hooks/useTransactions';
+
 import { 
-  Barcode, 
-  User, 
-  Grid3x3, 
-  ShoppingCart,
-  Receipt as ReceiptIcon,
-  AlertTriangle 
+  X, Plus, Barcode, User, Grid3x3, 
+  ShoppingCart, History
 } from 'lucide-react';
 import clsx from 'clsx';
 
 /**
- * POSPage Component
- * 
- * Main POS/Checkout screen for processing sales.
- * Integrates product search, cart management, payments, and receipts.
- * 
- * Features:
- * - Product search (barcode scanner, manual search)
- * - Shopping cart display
- * - Item quantity adjustment
- * - Apply discounts
- * - Payment method selection
- * - Cash calculator
- * - Complete transaction
- * - Print receipt
+ * POSPage Component - REFACTORED
+ * Now uses custom hooks and context for business logic
+ * UI layer is clean and focused on presentation
  */
-
 const POSPage = () => {
-  const toast = useToast();
-
-  // UI State
-  const [scannerOpen, setScannerOpen] = useState(false);
-  const [paymentOpen, setPaymentOpen] = useState(false);
-  const [discountOpen, setDiscountOpen] = useState(false);
-  const [receiptOpen, setReceiptOpen] = useState(false);
-  const [showQuickGrid, setShowQuickGrid] = useState(true);
+  // UI State (only UI-specific state remains in component)
   const [gridView, setGridView] = useState('grid');
+  const [leftTab, setLeftTab] = useState('quick');
 
-  // Cart State
-  const [cartItems, setCartItems] = useState([]);
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
-  const [discount, setDiscount] = useState({ type: 'none', value: 0, amount: 0 });
-  const [completedTransaction, setCompletedTransaction] = useState(null);
+  // Business logic via hooks
+  const pos = usePOS({
+    taxRate: DEFAULT_TAX_RATE,
+    autoRefreshInterval: null, // Set to 30000 for 30s auto-refresh
+  });
 
-  // Data State (In production, these would come from hooks/API)
-  const [products, setProducts] = useState([
-    {
-      id: 1,
-      name: 'Laptop HP 15s',
-      sku: 'LAP-HP-001',
-      barcode: '1234567890123',
-      price: 2500.00,
-      stock: 15,
-      image: null,
-      categoryId: 1,
-    },
-    {
-      id: 2,
-      name: 'Wireless Mouse',
-      sku: 'MSE-001',
-      barcode: '1234567890124',
-      price: 45.00,
-      stock: 50,
-      image: null,
-      categoryId: 1,
-    },
-    {
-      id: 3,
-      name: 'USB-C Cable',
-      sku: 'CBL-001',
-      barcode: '1234567890125',
-      price: 15.00,
-      stock: 5,
-      image: null,
-      categoryId: 2,
-    },
-  ]);
+  const transactionsHook = useTransactions({
+    autoFetch: true,
+    initialLimit: 50,
+  });
 
-  const [customers, setCustomers] = useState([
+  // Mock data (will be replaced with API calls)
+  const [customers] = useState([
     {
-      id: 1,
+      id: 'cust-1',
       name: 'John Doe',
       email: 'john@example.com',
       phone: '+972-50-123-4567',
@@ -101,7 +58,7 @@ const POSPage = () => {
       isVip: false,
     },
     {
-      id: 2,
+      id: 'cust-2',
       name: 'Jane Smith',
       email: 'jane@example.com',
       phone: '+972-50-987-6543',
@@ -125,203 +82,61 @@ const POSPage = () => {
     website: 'www.mystore.com',
   };
 
-  const taxRate = 17; // 17% VAT
-
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyPress = (e) => {
       // F2 - Open barcode scanner
       if (e.key === 'F2') {
         e.preventDefault();
-        setScannerOpen(true);
+        pos.openModal('scanner');
       }
-      // F3 - Toggle quick grid
+      // F3 - Switch left tabs
       if (e.key === 'F3') {
         e.preventDefault();
-        setShowQuickGrid(prev => !prev);
+        setLeftTab(prev => {
+          if (prev === 'quick') return 'search';
+          if (prev === 'search') return 'transactions';
+          return 'quick';
+        });
       }
       // F4 - Apply discount
-      if (e.key === 'F4' && cartItems.length > 0) {
+      if (e.key === 'F4' && !pos.cart.isEmpty) {
         e.preventDefault();
-        setDiscountOpen(true);
+        pos.openModal('discount');
+      }
+      // F8 - New cart
+      if (e.key === 'F8') {
+        e.preventDefault();
+        pos.cart.createCart();
       }
       // F12 - Checkout
-      if (e.key === 'F12' && cartItems.length > 0) {
+      if (e.key === 'F12' && !pos.cart.isEmpty) {
         e.preventDefault();
-        handleCheckout();
+        pos.handleCheckout();
       }
     };
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [cartItems]);
+  }, [pos]);
 
-  // Add product to cart
-  const handleAddToCart = (product) => {
-    if (product.stock === 0) {
-      toast.error('Product is out of stock');
-      return;
-    }
-
-    const existingItem = cartItems.find(item => item.id === product.id);
-    
-    if (existingItem) {
-      if (existingItem.quantity >= product.stock) {
-        toast.warning('Cannot add more than available stock');
-        return;
-      }
-      setCartItems(cartItems.map(item =>
-        item.id === product.id
-          ? { ...item, quantity: item.quantity + 1 }
-          : item
-      ));
-      toast.success('Quantity updated');
-    } else {
-      setCartItems([...cartItems, {
-        id: product.id,
-        name: product.name,
-        sku: product.sku,
-        price: product.price,
-        quantity: 1,
-        stock: product.stock,
-        image: product.image,
-      }]);
-      toast.success(`${product.name} added to cart`);
-    }
+  // Format helpers
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(amount);
   };
 
-  // Update item quantity
-  const handleUpdateQuantity = (itemId, newQuantity) => {
-    const item = cartItems.find(i => i.id === itemId);
-    
-    if (newQuantity > item.stock) {
-      toast.warning('Cannot exceed available stock');
-      return;
-    }
-
-    setCartItems(cartItems.map(i =>
-      i.id === itemId ? { ...i, quantity: newQuantity } : i
-    ));
+  const formatDateTime = (isoString) => {
+    const date = new Date(isoString);
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date);
   };
-
-  // Remove item from cart
-  const handleRemoveItem = (itemId) => {
-    setCartItems(cartItems.filter(item => item.id !== itemId));
-    toast.info('Item removed from cart');
-  };
-
-  // Clear cart
-  const handleClearCart = () => {
-    if (window.confirm('Are you sure you want to clear the cart?')) {
-      setCartItems([]);
-      setSelectedCustomer(null);
-      setDiscount({ type: 'none', value: 0, amount: 0 });
-      toast.info('Cart cleared');
-    }
-  };
-
-  // Apply discount
-  const handleApplyDiscount = (discountData) => {
-    if (discountData) {
-      setDiscount({
-        type: discountData.type,
-        value: discountData.value,
-        amount: discountData.amount,
-        reason: discountData.reason,
-      });
-      toast.success('Discount applied');
-    } else {
-      setDiscount({ type: 'none', value: 0, amount: 0 });
-      toast.info('Discount removed');
-    }
-  };
-
-  // Barcode scan
-  const handleBarcodeScan = (barcode) => {
-    const product = products.find(p => p.barcode === barcode);
-    
-    if (product) {
-      handleAddToCart(product);
-      setScannerOpen(false);
-    } else {
-      throw new Error('Product not found');
-    }
-  };
-
-  // Calculate totals
-  const calculateTotals = () => {
-    const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const discountAmount = discount.amount || 0;
-    const afterDiscount = subtotal - discountAmount;
-    const taxAmount = afterDiscount * (taxRate / 100);
-    const total = afterDiscount + taxAmount;
-
-    return {
-      subtotal,
-      discountAmount,
-      taxAmount,
-      total,
-      itemCount: cartItems.reduce((sum, item) => sum + item.quantity, 0),
-    };
-  };
-
-  // Open checkout
-  const handleCheckout = () => {
-    if (cartItems.length === 0) {
-      toast.warning('Cart is empty');
-      return;
-    }
-    setPaymentOpen(true);
-  };
-
-  // Complete payment
-  const handlePaymentComplete = async (payment) => {
-    const totals = calculateTotals();
-    
-    const transaction = {
-      id: `TXN-${Date.now()}`,
-      items: cartItems,
-      subtotal: totals.subtotal,
-      discount: discount.amount > 0 ? discount : null,
-      tax: {
-        rate: taxRate,
-        amount: totals.taxAmount,
-      },
-      total: totals.total,
-      payment,
-      customer: selectedCustomer,
-      cashier: {
-        id: 1,
-        name: 'Current User', // Would come from auth context
-      },
-      timestamp: new Date().toISOString(),
-    };
-
-    // In production, save transaction to backend
-    console.log('Transaction completed:', transaction);
-    
-    setCompletedTransaction(transaction);
-    setPaymentOpen(false);
-    
-    // Show receipt preview
-    setTimeout(() => {
-      setReceiptOpen(true);
-    }, 300);
-
-    toast.success('Transaction completed successfully!');
-  };
-
-  // New transaction
-  const handleNewTransaction = () => {
-    setCartItems([]);
-    setSelectedCustomer(null);
-    setDiscount({ type: 'none', value: 0, amount: 0 });
-    setCompletedTransaction(null);
-    setReceiptOpen(false);
-    toast.info('Ready for new transaction');
-  };
-
-  const totals = calculateTotals();
 
   return (
     <MainLayout
@@ -329,122 +144,326 @@ const POSPage = () => {
       user={{ name: 'John Doe', role: 'Cashier', avatar: 'JD' }}
     >
       <div className="h-[calc(100vh-8rem)] flex gap-4">
-        {/* Left Side - Products & Search */}
-        <div className={clsx(
-          'flex flex-col gap-4 transition-all duration-300',
-          showQuickGrid ? 'flex-1' : 'w-full'
-        )}>
-          {/* Search Section */}
-          <Card className="flex-shrink-0">
-            <CardBody>
-              <div className="space-y-4">
-                {/* Product Search */}
-                <ProductSearch
-                  products={products}
-                  onSelectProduct={handleAddToCart}
-                  onScanBarcode={() => setScannerOpen(true)}
-                  placeholder="Search or scan product..."
-                />
-
-                {/* Customer Search */}
-                <CustomerSearch
-                  customers={customers}
-                  selectedCustomer={selectedCustomer}
-                  onSelectCustomer={setSelectedCustomer}
-                  onAddNew={() => toast.info('Add customer feature coming soon')}
-                />
-
-                {/* Quick Actions */}
-                <div className="flex gap-2">
+        {/* Left Side - Tabbed Interface */}
+        <div className="flex-1 flex flex-col min-h-0">
+          <Card className="flex-1 flex flex-col min-h-0">
+            {/* Tabs Header */}
+            <div className="flex-shrink-0 border-b border-gray-200 bg-gray-50">
+              <div className="flex items-center">
+                <button
+                  onClick={() => setLeftTab('quick')}
+                  className={clsx(
+                    'flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-r border-gray-200',
+                    leftTab === 'quick'
+                      ? 'bg-white text-primary-600 shadow-sm'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  )}
+                >
+                  <Grid3x3 className="h-4 w-4" />
+                  Quick Products
+                </button>
+                <button
+                  onClick={() => setLeftTab('search')}
+                  className={clsx(
+                    'flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-r border-gray-200',
+                    leftTab === 'search'
+                      ? 'bg-white text-primary-600 shadow-sm'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  )}
+                >
+                  <User className="h-4 w-4" />
+                  Search
+                </button>
+                <button
+                  onClick={() => setLeftTab('transactions')}
+                  className={clsx(
+                    'flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-r border-gray-200',
+                    leftTab === 'transactions'
+                      ? 'bg-white text-primary-600 shadow-sm'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  )}
+                >
+                  <History className="h-4 w-4" />
+                  Recent Transactions
+                </button>
+                
+                <div className="ml-auto px-4">
                   <Button
                     variant="outline"
                     size="sm"
                     icon={Barcode}
-                    onClick={() => setScannerOpen(true)}
-                    fullWidth
+                    onClick={() => pos.openModal('scanner')}
                   >
                     Scan (F2)
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    icon={Grid3x3}
-                    onClick={() => setShowQuickGrid(!showQuickGrid)}
-                    fullWidth
-                  >
-                    {showQuickGrid ? 'Hide' : 'Show'} Grid (F3)
-                  </Button>
                 </div>
               </div>
-            </CardBody>
-          </Card>
+            </div>
 
-          {/* Quick Product Grid */}
-          {showQuickGrid && (
-            <Card className="flex-1 min-h-0">
-              <CardBody className="h-full">
+            {/* Tab Content */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-6">
+              {leftTab === 'quick' && (
                 <QuickProductGrid
-                  products={products}
+                  products={pos.products}
                   categories={categories}
-                  onSelectProduct={handleAddToCart}
+                  onSelectProduct={pos.cart.addItem}
                   view={gridView}
                   onViewChange={setGridView}
                 />
-              </CardBody>
-            </Card>
-          )}
+              )}
+              
+              {leftTab === 'search' && (
+                <div className="flex flex-col gap-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-2">Products</h3>
+                    <ProductSearch
+                      products={pos.products}
+                      onSelectProduct={pos.cart.addItem}
+                      onScanBarcode={() => pos.openModal('scanner')}
+                      placeholder="Search products..."
+                      autoFocus={true}
+                    />
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-2">Customers</h3>
+                    <CustomerSearch
+                      customers={customers}
+                      selectedCustomer={pos.cart.activeCart.customer}
+                      onSelectCustomer={pos.cart.setCustomer}
+                      onAddNew={() => pos.openModal('customer')}
+                      autoFocus={false}
+                    />
+                  </div>
+                </div>
+              )}
+              
+              {leftTab === 'transactions' && (
+                <div className="h-full flex flex-col">
+                  <div className="flex-shrink-0 mb-4 flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">Recent Transactions</h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        {transactionsHook.transactions.length} transactions
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={transactionsHook.refresh}
+                      disabled={transactionsHook.isLoading}
+                    >
+                      {transactionsHook.isLoading ? 'Loading...' : 'Refresh'}
+                    </Button>
+                  </div>
+
+                  <div className="flex-1 min-h-0 overflow-y-auto border border-gray-200 rounded-lg">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50 sticky top-0 z-10">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                            Receipt #
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                            Date & Time
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                            Customer
+                          </th>
+                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                            Items
+                          </th>
+                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                            Total
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                            Payment
+                          </th>
+                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {transactionsHook.isLoading ? (
+                          <tr>
+                            <td colSpan="7" className="px-4 py-8 text-center text-gray-500">
+                              Loading transactions...
+                            </td>
+                          </tr>
+                        ) : transactionsHook.transactions.length === 0 ? (
+                          <tr>
+                            <td colSpan="7" className="px-4 py-8 text-center text-gray-500">
+                              No transactions found
+                            </td>
+                          </tr>
+                        ) : (
+                          transactionsHook.transactions.map((transaction) => (
+                            <tr key={transaction.id} className="hover:bg-gray-50 transition-colors">
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <span className="text-sm font-medium text-gray-900">
+                                  {transaction.receiptNumber}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <span className="text-sm text-gray-600">
+                                  {formatDateTime(transaction.timestamp)}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <span className="text-sm text-gray-900">
+                                  {transaction.customer?.name || 'Walk-in'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap text-right">
+                                <span className="text-sm text-gray-600">
+                                  {transaction.items?.length || 0}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap text-right">
+                                <span className="text-sm font-semibold text-gray-900">
+                                  {formatCurrency(transaction.total)}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <span className={clsx(
+                                  'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
+                                  transaction.payment?.method === 'CASH'
+                                    ? 'bg-green-100 text-green-800'
+                                    : 'bg-blue-100 text-blue-800'
+                                )}>
+                                  {transaction.payment?.method || 'N/A'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap text-right">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => pos.viewTransaction(transaction)}
+                                >
+                                  View
+                                </Button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          </Card>
         </div>
 
-        {/* Right Side - Cart */}
-        <div className="w-96 flex flex-col">
+        {/* Right Side - Cart with Multiple Tabs */}
+        <div className="w-full flex flex-col min-h-0">
           <Card className="flex-1 flex flex-col min-h-0">
-            <Cart
-              items={cartItems}
-              onUpdateQuantity={handleUpdateQuantity}
-              onRemoveItem={handleRemoveItem}
-              onClearCart={handleClearCart}
-              onApplyDiscount={() => setDiscountOpen(true)}
-              onCheckout={handleCheckout}
-              discount={discount}
-              tax={{ rate: taxRate, amount: totals.taxAmount }}
-            />
+            {/* Cart Tabs */}
+            <div className="flex-shrink-0 border-b border-gray-200 bg-gray-50">
+              <div className="flex items-center overflow-x-auto">
+                <div className="flex-1 flex items-center min-w-0">
+                  {pos.cart.carts.map((cart) => (
+                    <div
+                      key={cart.id}
+                      className={clsx(
+                        'group relative flex items-center gap-2 px-3 py-2.5 text-sm font-medium cursor-pointer border-r border-gray-200 min-w-[120px]',
+                        'hover:bg-gray-100 transition-colors',
+                        pos.cart.activeCartId === cart.id
+                          ? 'bg-white text-primary-600 shadow-sm'
+                          : 'text-gray-600'
+                      )}
+                      onClick={() => pos.cart.switchCart(cart.id)}
+                    >
+                      <ShoppingCart className="h-4 w-4 flex-shrink-0" />
+                      <span className="truncate">{cart.name}</span>
+                      {cart.items.length > 0 && (
+                        <span className={clsx(
+                          'text-xs px-1.5 py-0.5 rounded-full font-semibold',
+                          pos.cart.activeCartId === cart.id
+                            ? 'bg-primary-100 text-primary-700'
+                            : 'bg-gray-200 text-gray-700'
+                        )}>
+                          {cart.items.length}
+                        </span>
+                      )}
+                      
+                      {pos.cart.carts.length > 1 && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            pos.cart.closeCart(cart.id);
+                          }}
+                          className="ml-auto opacity-0 group-hover:opacity-100 hover:text-danger-600 transition-all p-0.5 hover:bg-danger-50 rounded"
+                          title="Close cart"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  onClick={pos.cart.createCart}
+                  className="flex-shrink-0 px-3 py-2.5 text-gray-600 hover:text-primary-600 hover:bg-gray-100 transition-colors"
+                  title="New Cart (F8)"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Cart Content */}
+            <div className="flex-1 min-h-0">
+              <Cart
+                items={pos.cart.activeCart.items}
+                onUpdateQuantity={pos.cart.updateQuantity}
+                onRemoveItem={pos.cart.removeItem}
+                onClearCart={() => pos.cart.clearCart(false)}
+                onApplyDiscount={() => pos.openModal('discount')}
+                onCheckout={pos.handleCheckout}
+                discount={pos.cart.activeCart.discount}
+                tax={{ rate: pos.taxRate, amount: pos.totals.taxAmount }}
+              />
+            </div>
           </Card>
         </div>
       </div>
 
       {/* Modals */}
       <BarcodeScanner
-        isOpen={scannerOpen}
-        onClose={() => setScannerOpen(false)}
-        onScan={handleBarcodeScan}
-        onError={(err) => toast.error(err.message)}
+        isOpen={pos.modals.scanner}
+        onClose={() => pos.closeModal('scanner')}
+        onScan={pos.handleBarcodeScan}
+        onError={(err) => console.error(err)}
       />
 
       <DiscountModal
-        isOpen={discountOpen}
-        onClose={() => setDiscountOpen(false)}
-        subtotal={totals.subtotal}
-        currentDiscount={discount.amount > 0 ? discount : null}
-        onApply={handleApplyDiscount}
+        isOpen={pos.modals.discount}
+        onClose={() => pos.closeModal('discount')}
+        subtotal={pos.totals.subtotal}
+        currentDiscount={pos.cart.activeCart.discount.amount > 0 ? pos.cart.activeCart.discount : null}
+        onApply={pos.cart.applyDiscount}
       />
 
       <PaymentModal
-        isOpen={paymentOpen}
-        onClose={() => setPaymentOpen(false)}
-        total={totals.total}
-        items={cartItems}
-        discount={discount.amount > 0 ? discount : null}
-        tax={{ rate: taxRate, amount: totals.taxAmount }}
-        onComplete={handlePaymentComplete}
-        onError={(err) => toast.error(err.message)}
+        isOpen={pos.modals.payment}
+        onClose={() => pos.closeModal('payment')}
+        total={pos.totals.total}
+        items={pos.cart.activeCart.items}
+        discount={pos.cart.activeCart.discount.amount > 0 ? pos.cart.activeCart.discount : null}
+        tax={{ rate: pos.taxRate, amount: pos.totals.taxAmount }}
+        onComplete={pos.completeTransaction}
+        onError={(err) => console.error(err)}
       />
 
       <ReceiptPreview
-        isOpen={receiptOpen}
-        onClose={handleNewTransaction}
-        transaction={completedTransaction}
+        isOpen={pos.modals.receipt}
+        onClose={pos.newTransaction}
+        transaction={pos.selectedTransaction}
         store={storeInfo}
-        onPrint={() => toast.success('Receipt sent to printer')}
+        onPrint={() => console.log('Print receipt')}
       />
     </MainLayout>
   );

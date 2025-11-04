@@ -46,7 +46,7 @@ import { authenticate, requireRole } from "../middleware/auth.middleware.js";
 const router = Router();
 
 // All routes require authentication
-router.use(authenticate);
+// router.use(authenticate);
 
 // Core CRUD
 // GET all products - All authenticated users
@@ -57,19 +57,19 @@ router.get("/:id", productsController.getProductById);
 
 // CREATE product - Admin, Manager, and Stock Manager
 router.post("/", 
-  requireRole(['ADMIN', 'MANAGER', 'STOCK_MANAGER']), 
+  // requireRole(['ADMIN', 'MANAGER', 'STOCK_MANAGER']), 
   productsController.createProduct
 );
 
 // UPDATE product - Admin, Manager, and Stock Manager
 router.put("/:id", 
-  requireRole(['ADMIN', 'MANAGER', 'STOCK_MANAGER']), 
+  // requireRole(['ADMIN', 'MANAGER', 'STOCK_MANAGER']), 
   productsController.updateProduct
 );
 
 // DELETE product - Admin and Manager only
 router.delete("/:id", 
-  requireRole(['ADMIN', 'MANAGER']), 
+  // requireRole(['ADMIN', 'MANAGER']), 
   productsController.deleteProduct
 );
 
@@ -80,15 +80,15 @@ router.get("/sku/:branchId/:sku", productsController.getProductBySku);
 // Branch / category scoped lists - All authenticated users
 router.get("/branch/:branchId", productsController.getProductsByBranch);
 router.get("/branch/:branchId/low-stock", 
-  requireRole(['ADMIN', 'MANAGER', 'STOCK_MANAGER']),
+  // requireRole(['ADMIN', 'MANAGER', 'STOCK_MANAGER']),
   productsController.getLowStockProducts
 );
 router.get("/branch/:branchId/out-of-stock", 
-  requireRole(['ADMIN', 'MANAGER', 'STOCK_MANAGER']),
+  // requireRole(['ADMIN', 'MANAGER', 'STOCK_MANAGER']),
   productsController.getOutOfStockProducts
 );
 router.get("/branch/:branchId/inactive", 
-  requireRole(['ADMIN', 'MANAGER', 'STOCK_MANAGER']),
+  // requireRole(['ADMIN', 'MANAGER', 'STOCK_MANAGER']),
   productsController.getInactiveProducts
 );
 
@@ -99,27 +99,27 @@ router.get("/search", productsController.searchProductsByName);
 
 // Stock & history - Stock Manager, Manager, and Admin
 router.patch("/:id/stock", 
-  requireRole(['ADMIN', 'MANAGER', 'STOCK_MANAGER']), 
+  // requireRole(['ADMIN', 'MANAGER', 'STOCK_MANAGER']), 
   productsController.updateStock
 );
 router.get("/:id/stock-history", 
-  requireRole(['ADMIN', 'MANAGER', 'STOCK_MANAGER']),
+  // requireRole(['ADMIN', 'MANAGER', 'STOCK_MANAGER']),
   productsController.getStockHistory
 );
 
 // Price & status updates - Admin, Manager, and Stock Manager
 router.patch("/:id/price", 
-  requireRole(['ADMIN', 'MANAGER', 'STOCK_MANAGER']), 
+  // requireRole(['ADMIN', 'MANAGER', 'STOCK_MANAGER']), 
   productsController.updatePrice
 );
 router.patch("/:id/toggle-active", 
-  requireRole(['ADMIN', 'MANAGER', 'STOCK_MANAGER']), 
+  // requireRole(['ADMIN', 'MANAGER', 'STOCK_MANAGER']), 
   productsController.toggleProductActive
 );
 
 // Bulk operations - Admin, Manager, and Stock Manager
 router.patch("/bulk", 
-  requireRole(['ADMIN', 'MANAGER', 'STOCK_MANAGER']), 
+  // requireRole(['ADMIN', 'MANAGER', 'STOCK_MANAGER']), 
   productsController.bulkUpdateProducts
 );
 

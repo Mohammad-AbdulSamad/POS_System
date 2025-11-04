@@ -114,7 +114,7 @@ const QuickProductGrid = ({
               className={clsx(
                 'px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors',
                 selectedCategory === 'all'
-                  ? 'bg-primary-500 text-white'
+                  ? 'bg-primary-500 text-black border-2 border-black'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               )}
             >
@@ -127,7 +127,7 @@ const QuickProductGrid = ({
                 className={clsx(
                   'px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors',
                   selectedCategory === category.id
-                    ? 'bg-primary-500 text-white'
+                    ? 'bg-primary-500 text-black border-2 border-black'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 )}
               >
@@ -182,7 +182,7 @@ const QuickProductGrid = ({
                     </h4>
                     <div className="flex items-center justify-between">
                       <span className="text-lg font-bold text-primary-600">
-                        ₪{product.price.toFixed(2)}
+                        ₪{product.priceGross}
                       </span>
                     </div>
                   </div>
@@ -250,7 +250,7 @@ const QuickProductGrid = ({
                     )}
                     <div className="flex items-center gap-2">
                       <span className="text-lg font-bold text-primary-600">
-                        ₪{product.price.toFixed(2)}
+                        ₪{product.priceGross}
                       </span>
                       {product.stock === 0 ? (
                         <Badge variant="danger" size="xs">Out of Stock</Badge>

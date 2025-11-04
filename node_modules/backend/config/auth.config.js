@@ -7,9 +7,9 @@ export const authConfig = {
   jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || 'your-super-secret-refresh-key-change-in-production',
   
   // Token Expiry Times
-  accessTokenExpiry: '1s',      // 30 minutes
-  refreshTokenExpiry: '5s',      // 7 days
-  
+  accessTokenExpiry: '30m',      // 30 minutes
+  refreshTokenExpiry: '7d',      // 7 days
+
   // Token Cookie Options
   cookieOptions: {
     httpOnly: true,               // Prevents XSS attacks

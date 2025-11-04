@@ -51,7 +51,7 @@ const Button = forwardRef(
       success: 'btn-success',
       danger: 'btn-danger',
       warning: 'btn-warning',   // add .btn-warning in CSS
-      outline: 'btn-outline',
+      outline: `btn-outline`,
       ghost: 'btn-ghost',       // add .btn-ghost in CSS
       link: 'btn-link'          // add .btn-link in CSS
     };

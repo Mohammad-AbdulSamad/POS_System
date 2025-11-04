@@ -1,5 +1,5 @@
 // src/components/pos/Receipt.jsx
-import { forwardRef } from 'react';
+import { forwardRef, useEffect } from 'react';
 import clsx from 'clsx';
 
 /**
@@ -45,6 +45,11 @@ const Receipt = forwardRef(({
       minute: '2-digit',
     });
   };
+
+  useEffect(()=> {
+    console.log('Hhhhhhhhhhhhhhhhhhhh')
+
+  },[])
 
   return (
     <div

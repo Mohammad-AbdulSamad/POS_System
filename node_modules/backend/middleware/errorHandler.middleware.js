@@ -1,7 +1,19 @@
 // middleware/errorHandler.middleware.js
-import { Prisma } from '@prisma/client';
 import logger from '../config/logger.config.js';
 import { AppError, DatabaseError, TokenError, ValidationError } from '../utils/errors.utils.js';
+import { PrismaClient } from '@prisma/client';
+
+const Prisma = new PrismaClient();
+/**
+ * Check if error is a Prisma error by checking properties
+ */
+const isPrismaError = (error) => {
+  return error && (
+    error.code?.startsWith('P') || 
+    error.constructor?.name?.includes('Prisma') ||
+    error.name?.includes('Prisma')
+  );
+};
 
 /**
  * Handle Prisma errors and convert to AppError
@@ -162,10 +174,9 @@ export const errorHandler = (err, req, res, next) => {
   error.stack = err.stack;
 
   // Handle specific error types
-  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+  // Check for Prisma errors by properties (code, name, constructor)
+  if (isPrismaError(err)) {
     error = handlePrismaError(err);
-  } else if (err instanceof Prisma.PrismaClientValidationError) {
-    error = new DatabaseError('Invalid query parameters', err);
   } else if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
     error = handleJWTError(err);
   } else if (err.name === 'ZodError' || (err.name === 'ValidationError' && err.details)) {

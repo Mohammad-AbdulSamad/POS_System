@@ -1,10 +1,91 @@
 // controllers/transactions.controller.js - Updated with Error Handling & Logging
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
 import asyncHandler from "../middleware/asyncHandler.middleware.js";
 import { NotFoundError, BadRequestError, ConflictError } from "../utils/errors.utils.js";
 import logger from "../config/logger.config.js";
 
 const prisma = new PrismaClient();
+
+
+
+
+// 🔥 PRODUCTION OPTIMIZATION: Batch product validation to prevent N+1 queries
+const validateAndFetchProducts = async (lines) => {
+  const productIds = [...new Set(lines.map(l => l.productId))];
+  
+  const products = await prisma.product.findMany({
+    where: { 
+      id: { in: productIds },
+      active: true 
+    },
+    select: { 
+      id: true, 
+      name: true, 
+      stock: true, 
+      priceGross: true 
+    }
+  });
+
+  const productMap = Object.fromEntries(products.map(p => [p.id, p]));
+  
+  // Validate all products exist
+  const missingProducts = productIds.filter(id => !productMap[id]);
+  if (missingProducts.length > 0) {
+    console.log('Missing products:', missingProducts);
+    throw new NotFoundError(`Products not found or inactive: ${missingProducts.join(', ')}`);
+  }
+  console.log('//////////////////////////////////////////////////////////////////////');
+  console.log('Product map:', productMap);
+   return productMap;
+};
+
+// 🔥 PRODUCTION OPTIMIZATION: Calculate totals in memory (no DB calls)
+const calculateTransactionTotals = (lines, productMap) => {
+  let totalNet = 0;
+  let totalTax = 0;
+  const validatedLines = [];
+  const stockUpdates = {};
+
+  for (const line of lines) {
+    const { productId, qty, unitPrice, discount = 0, taxAmount = 0 } = line;
+    const product = productMap[productId];
+
+    // Accumulate stock changes
+    stockUpdates[productId] = (stockUpdates[productId] || 0) + parseInt(qty);
+
+    // Check stock availability (accumulated)
+    if (product.stock < stockUpdates[productId]) {
+      throw new BadRequestError(
+        `Insufficient stock for ${product.name}. Available: ${product.stock}, Required: ${stockUpdates[productId]}`
+      );
+    }
+
+    const lineTotal = (parseFloat(unitPrice) * parseInt(qty)) - parseFloat(discount);
+    totalNet += lineTotal;
+    totalTax += parseFloat(taxAmount);
+
+    validatedLines.push({
+      productId,
+      unitPrice: parseFloat(unitPrice),
+      qty: parseInt(qty),
+      discount: parseFloat(discount),
+      taxAmount: parseFloat(taxAmount),
+      lineTotal
+    });
+  }
+
+  return {
+    totalNet,
+    totalTax,
+    totalGross: totalNet + totalTax,
+    validatedLines,
+    stockUpdates
+  };
+};
+
+
+
+
 
 // ✅ Get all transactions
 export const getAllTransactions = asyncHandler(async (req, res) => {
@@ -166,7 +247,197 @@ export const getTransactionById = asyncHandler(async (req, res) => {
   res.json(transaction);
 });
 
-// ✅ Create transaction
+// 🔥 ✅ Create transaction - PRODUCTION OPTIMIZED
+// export const createTransaction = asyncHandler(async (req, res) => {
+//   const {
+//     branchId,
+//     cashierId,
+//     customerId,
+//     lines,
+//     payments,
+//     loyaltyPointsEarned = 0,
+//     loyaltyPointsUsed = 0,
+//     metadata
+//   } = req.body;
+  
+//   // 🔥 OPTIMIZATION 1: Batch validate branch, cashier, customer in parallel
+//   const [branch, cashier, customer] = await Promise.all([
+//     prisma.branch.findUnique({ where: { id: branchId } }),
+//     cashierId ? prisma.user.findUnique({ where: { id: cashierId } }) : null,
+//     customerId ? prisma.customer.findUnique({ where: { id: customerId } }) : null
+//   ]);
+  
+//   if (!branch) throw new NotFoundError('Branch not found');
+//   if (cashierId && !cashier) throw new NotFoundError('Cashier not found');
+//   if (customerId && !customer) throw new NotFoundError('Customer not found');
+  
+//   // 🔥 OPTIMIZATION 2: Batch fetch and validate all products at once (prevents N+1)
+//   const productMap = await validateAndFetchProducts(lines);
+  
+//   // 🔥 OPTIMIZATION 3: Calculate totals in memory (no DB calls)
+//   const { totalNet, totalTax, totalGross, validatedLines, stockUpdates } = 
+//     calculateTransactionTotals(lines, productMap);
+//     console.log('//////////////////////////////////////////////////////////////////////');
+//   console.log('totalNet:', totalNet, 'totalTax:', totalTax, 'totalGross:', totalGross);
+
+//   // Generate unique receipt number
+//   const receiptNumber = `REC-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
+//   console.log('//////////////////////////////////////////////////////////////////////');
+//   console.log('Generated receipt number:', receiptNumber);
+//   // 🔥 OPTIMIZATION 4: Use Prisma transaction with row-level locking
+//   const result = await prisma.$transaction(async (tx) => {
+// //     // 🔥 CRITICAL: Lock product rows to prevent race conditions
+//     const productIds = Object.keys(stockUpdates);
+//     // ✅ CORRECT (fixed version)
+//    await tx.$executeRaw`
+//      SELECT id FROM "Product"
+//      WHERE id = ANY(${productIds}::uuid[])
+//      FOR UPDATE
+//    `;
+
+//     console.log('//////////////////////////////////////////////////////////////////////');
+//     console.log('//////////////////////////////////////////////////////////////////////');
+//     console.log('//////////////////////////////////////////////////////////////////////');
+//     console.log('//////////////////////////////////////////////////////////////////////');
+//     // Create the transaction
+//     const newTransaction = await tx.transaction.create({
+//       data: {
+//         branchId,
+//         cashierId: cashierId || null,
+//         customerId: customerId || null,
+//         receiptNumber,
+//         totalGross,
+//         totalTax,
+//         totalNet,
+//         loyaltyPointsEarned: parseInt(loyaltyPointsEarned),
+//         loyaltyPointsUsed: parseInt(loyaltyPointsUsed),
+//         metadata: metadata || null,
+//         status: 'COMPLETED'
+//       }
+//     });
+    
+//     // 🔥 OPTIMIZATION 5: Batch create transaction lines
+//     await tx.transactionLine.createMany({
+//       data: validatedLines.map(line => ({
+//         transactionId: newTransaction.id,
+//         ...line
+//       }))
+//     });
+    
+//     // 🔥 OPTIMIZATION 6: Batch update product stock
+//     const stockUpdatePromises = Object.entries(stockUpdates).map(([productId, qty]) =>
+//       tx.product.update({
+//         where: { id: productId },
+//         data: { stock: { decrement: qty } }
+//       })
+//     );
+    
+//     // 🔥 OPTIMIZATION 7: Batch create stock movements
+//     const stockMovementData = Object.entries(stockUpdates).map(([productId, qty]) => ({
+//       productId,
+//       branchId,
+//       change: -qty,
+//       reason: 'sale'
+//     }));
+    
+//     await Promise.all([
+//       ...stockUpdatePromises,
+//       tx.stockMovement.createMany({ data: stockMovementData })
+//     ]);
+    
+//     // 🔥 OPTIMIZATION 8: Batch create payments if provided
+//     if (payments && Array.isArray(payments) && payments.length > 0) {
+//       await tx.payment.createMany({
+//         data: payments.map(payment => ({
+//           transactionId: newTransaction.id,
+//           method: payment.method,
+//           amount: parseFloat(payment.amount)
+//         }))
+//       });
+//     }
+    
+//     // Update customer loyalty points if applicable
+//     if (customerId && (loyaltyPointsEarned > 0 || loyaltyPointsUsed > 0)) {
+//       const loyaltyTransactions = [];
+      
+//       if (loyaltyPointsEarned > 0) {
+//         await tx.customer.update({
+//           where: { id: customerId },
+//           data: { loyaltyPoints: { increment: parseInt(loyaltyPointsEarned) } }
+//         });
+        
+//         loyaltyTransactions.push({
+//           customerId,
+//           points: parseInt(loyaltyPointsEarned),
+//           type: 'EARNED',
+//           reason: 'PURCHASE'
+//         });
+//       }
+      
+//       if (loyaltyPointsUsed > 0) {
+//         await tx.customer.update({
+//           where: { id: customerId },
+//           data: { loyaltyPoints: { decrement: parseInt(loyaltyPointsUsed) } }
+//         });
+        
+//         loyaltyTransactions.push({
+//           customerId,
+//           points: parseInt(loyaltyPointsUsed),
+//           type: 'REDEEMED',
+//           reason: 'PURCHASE'
+//         });
+//       }
+      
+//       if (loyaltyTransactions.length > 0) {
+//         await tx.loyaltyTransaction.createMany({ data: loyaltyTransactions });
+//       }
+//     }
+    
+//     return newTransaction;
+//   }, {
+//     // 🔥 PRODUCTION: Set transaction timeout and isolation level
+//     timeout: 10000, // 10 seconds
+//     isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted
+//   });
+  
+//   // Fetch the complete transaction AFTER the transaction commits (not inside)
+//   const completeTransaction = await prisma.transaction.findUnique({
+//     where: { id: result.id },
+//     include: {
+//       branch: { select: { id: true, name: true } },
+//       cashier: { select: { id: true, name: true } },
+//       customer: { select: { id: true, name: true } },
+//       lines: {
+//         include: {
+//           product: {
+//             select: { id: true, name: true, sku: true }
+//           }
+//         }
+//       },
+//       payments: true
+//     }
+//   });
+
+//   // 🔥 RESILIENCE: Log OUTSIDE transaction to avoid side effects
+//   logger.info({
+//     message: 'Transaction created',
+//     transactionId: completeTransaction.id,
+//     receiptNumber: completeTransaction.receiptNumber,
+//     branchId,
+//     cashierId,
+//     customerId,
+//     totalGross,
+//     lineCount: validatedLines.length,
+//     userId: req.user?.id,
+//     userEmail: req.user?.email
+//   });
+  
+//   res.status(201).json(completeTransaction);
+// });
+
+
+
+// 🔥 ✅ Create transaction - PRODUCTION OPTIMIZED
 export const createTransaction = asyncHandler(async (req, res) => {
   const {
     branchId,
@@ -179,91 +450,59 @@ export const createTransaction = asyncHandler(async (req, res) => {
     metadata
   } = req.body;
   
-  // Validate required fields
-  if (!branchId || !lines || !Array.isArray(lines) || lines.length === 0) {
-    throw new BadRequestError('Required fields: branchId, lines (array with at least one item)');
-  }
+  // 🔥 OPTIMIZATION 1: Batch validate branch, cashier, customer in parallel
+  const [branch, cashier, customer] = await Promise.all([
+    prisma.branch.findUnique({ where: { id: branchId } }),
+    cashierId ? prisma.user.findUnique({ where: { id: cashierId } }) : null,
+    customerId ? prisma.customer.findUnique({ where: { id: customerId } }) : null
+  ]);
   
-  // Validate branch exists
-  const branch = await prisma.branch.findUnique({
-    where: { id: branchId }
-  });
+  if (!branch) throw new NotFoundError('Branch not found');
+  if (cashierId && !cashier) throw new NotFoundError('Cashier not found');
+  if (customerId && !customer) throw new NotFoundError('Customer not found');
   
-  if (!branch) {
-    throw new NotFoundError('Branch not found');
-  }
-  
-  // Validate cashier if provided
-  if (cashierId) {
-    const cashier = await prisma.user.findUnique({
-      where: { id: cashierId }
-    });
-    
-    if (!cashier) {
-      throw new NotFoundError('Cashier not found');
-    }
-  }
-  
-  // Validate customer if provided
-  if (customerId) {
-    const customer = await prisma.customer.findUnique({
-      where: { id: customerId }
-    });
-    
-    if (!customer) {
-      throw new NotFoundError('Customer not found');
-    }
-  }
-  
-  // Calculate totals from lines
-  let totalNet = 0;
-  let totalTax = 0;
-  const validatedLines = [];
-  
-  for (const line of lines) {
-    const { productId, qty, unitPrice, discount = 0, taxAmount = 0 } = line;
-    
-    if (!productId || !qty || qty <= 0 || !unitPrice || unitPrice <= 0) {
-      throw new BadRequestError('Each line must have: productId, qty (> 0), unitPrice (> 0)');
-    }
-    
-    // Verify product exists and has sufficient stock
-    const product = await prisma.product.findUnique({
-      where: { id: productId }
-    });
-    
-    if (!product) {
-      throw new NotFoundError(`Product ${productId} not found`);
-    }
-    
-    
-    if (product.stock < qty) {
-      throw new BadRequestError(
-        `Insufficient stock for product ${product.name}. Available: ${product.stock}, Required: ${qty}`
-      );
-    }
-    
-    const lineTotal = (parseFloat(unitPrice) * parseInt(qty)) - parseFloat(discount);
-    totalNet += lineTotal;
-    totalTax += parseFloat(taxAmount);
-    
-    validatedLines.push({
-      productId,
-      unitPrice: parseFloat(unitPrice),
-      qty: parseInt(qty),
-      discount: parseFloat(discount),
-      taxAmount: parseFloat(taxAmount),
-      lineTotal
-    });
-  }
-  
-  const totalGross = totalNet + totalTax;
+  console.log('////////////////////////// First Step');
+  // 🔥 OPTIMIZATION 2: Batch fetch and validate all products at once (prevents N+1)
+  const productMap = await validateAndFetchProducts(lines);
+  console.log('////////////////////////// Second Step');
+  // 🔥 OPTIMIZATION 3: Calculate totals in memory (no DB calls)
+  const { totalNet, totalTax, totalGross, validatedLines, stockUpdates } = 
+    calculateTransactionTotals(lines, productMap);
+  console.log('////////////////////////// Third Step');
   
   // Generate unique receipt number
   const receiptNumber = `REC-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
+  console.log('////////////////////////// First Step');
   
-  // Create transaction with all related data in a database transaction
+  // 🔥 OPTIMIZATION 4: Use Prisma transaction with row-level locking
   const result = await prisma.$transaction(async (tx) => {
+    // 🔥 CRITICAL: Lock product rows to prevent race conditions
+    const productIds = Object.keys(stockUpdates);
+    
+    if (productIds.length > 0) {
+      try {
+        // ✅ FIXED: Proper array parameter binding for Prisma
+        console.log('Attempting to lock products:', productIds);
+        
+         await tx.$queryRaw`
+          SELECT id
+          FROM "Product"
+          WHERE id = ANY(${productIds})
+          FOR UPDATE
+        `;
+        
+        console.log('Successfully locked products');
+      } catch (lockError) {
+        console.error('Lock error details:', {
+          message: lockError.message,
+          code: lockError.code,
+          meta: lockError.meta,
+          productIds
+        });
+        throw lockError;
+      }
+    }
+    
     // Create the transaction
     const newTransaction = await tx.transaction.create({
       data: {
@@ -273,103 +512,99 @@ export const createTransaction = asyncHandler(async (req, res) => {
         receiptNumber,
         totalGross,
         totalTax,
-        totalNet: totalNet,
+        totalNet,
         loyaltyPointsEarned: parseInt(loyaltyPointsEarned),
         loyaltyPointsUsed: parseInt(loyaltyPointsUsed),
-        metadata: metadata || null
+        metadata: metadata || null,
+        status: 'COMPLETED'
       }
     });
     
-    // Create transaction lines and update product stock
-    for (const line of validatedLines) {
-      await tx.transactionLine.create({
-        data: {
-          transactionId: newTransaction.id,
-          ...line
-        }
-      });
-      
-      // Update product stock
-      await tx.product.update({
-        where: { id: line.productId },
-        data: {
-          stock: {
-            decrement: line.qty
-          }
-        }
-      });
-      
-      // Create stock movement record
-      await tx.stockMovement.create({
-        data: {
-          productId: line.productId,
-          branchId,
-          change: -line.qty,
-          reason: 'sale'
-        }
-      });
-    }
+    // 🔥 OPTIMIZATION 5: Batch create transaction lines
+    await tx.transactionLine.createMany({
+      data: validatedLines.map(line => ({
+        transactionId: newTransaction.id,
+        ...line
+      }))
+    });
     
-    // Create payments if provided
-    if (payments && Array.isArray(payments)) {
-      for (const payment of payments) {
-        await tx.payment.create({
-          data: {
-            transactionId: newTransaction.id,
-            method: payment.method,
-            amount: parseFloat(payment.amount)
-          }
-        });
-      }
+    // 🔥 OPTIMIZATION 6: Batch update product stock
+    const stockUpdatePromises = Object.entries(stockUpdates).map(([productId, qty]) =>
+      tx.product.update({
+        where: { id: productId },
+        data: { stock: { decrement: qty } }
+      })
+    );
+    
+    // 🔥 OPTIMIZATION 7: Batch create stock movements
+    const stockMovementData = Object.entries(stockUpdates).map(([productId, qty]) => ({
+      productId,
+      branchId,
+      change: -qty,
+      reason: 'sale'
+    }));
+    
+    await Promise.all([
+      ...stockUpdatePromises,
+      tx.stockMovement.createMany({ data: stockMovementData })
+    ]);
+    
+    // 🔥 OPTIMIZATION 8: Batch create payments if provided
+    if (payments && Array.isArray(payments) && payments.length > 0) {
+      await tx.payment.createMany({
+        data: payments.map(payment => ({
+          transactionId: newTransaction.id,
+          method: payment.method,
+          amount: parseFloat(payment.amount)
+        }))
+      });
     }
     
     // Update customer loyalty points if applicable
     if (customerId && (loyaltyPointsEarned > 0 || loyaltyPointsUsed > 0)) {
+      const loyaltyTransactions = [];
+      
       if (loyaltyPointsEarned > 0) {
         await tx.customer.update({
           where: { id: customerId },
-          data: {
-            loyaltyPoints: {
-              increment: parseInt(loyaltyPointsEarned)
-            }
-          }
+          data: { loyaltyPoints: { increment: parseInt(loyaltyPointsEarned) } }
         });
         
-        await tx.loyaltyTransaction.create({
-          data: {
-            customerId,
-            points: parseInt(loyaltyPointsEarned),
-            type: 'EARNED',
-            reason: 'PURCHASE'
-          }
+        loyaltyTransactions.push({
+          customerId,
+          points: parseInt(loyaltyPointsEarned),
+          type: 'EARNED',
+          reason: 'PURCHASE'
         });
       }
       
       if (loyaltyPointsUsed > 0) {
         await tx.customer.update({
           where: { id: customerId },
-          data: {
-            loyaltyPoints: {
-              decrement: parseInt(loyaltyPointsUsed)
-            }
-          }
+          data: { loyaltyPoints: { decrement: parseInt(loyaltyPointsUsed) } }
         });
         
-        await tx.loyaltyTransaction.create({
-          data: {
-            customerId,
-            points: parseInt(loyaltyPointsUsed),
-            type: 'REDEEMED',
-            reason: 'PURCHASE'
-          }
+        loyaltyTransactions.push({
+          customerId,
+          points: parseInt(loyaltyPointsUsed),
+          type: 'REDEEMED',
+          reason: 'PURCHASE'
         });
+      }
+      
+      if (loyaltyTransactions.length > 0) {
+        await tx.loyaltyTransaction.createMany({ data: loyaltyTransactions });
       }
     }
     
     return newTransaction;
+  }, {
+    // 🔥 PRODUCTION: Set transaction timeout and isolation level
+    timeout: 10000, // 10 seconds
+    isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted
   });
   
-  // Fetch the complete transaction with relations
+  // Fetch the complete transaction AFTER the transaction commits (not inside)
   const completeTransaction = await prisma.transaction.findUnique({
     where: { id: result.id },
     include: {
@@ -387,6 +622,7 @@ export const createTransaction = asyncHandler(async (req, res) => {
     }
   });
 
+  // 🔥 RESILIENCE: Log OUTSIDE transaction to avoid side effects
   logger.info({
     message: 'Transaction created',
     transactionId: completeTransaction.id,
@@ -402,6 +638,8 @@ export const createTransaction = asyncHandler(async (req, res) => {
   
   res.status(201).json(completeTransaction);
 });
+
+
 
 // ✅ Update transaction (limited - only status and metadata)
 export const updateTransaction = asyncHandler(async (req, res) => {

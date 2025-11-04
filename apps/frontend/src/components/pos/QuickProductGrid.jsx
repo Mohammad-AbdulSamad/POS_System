@@ -6,6 +6,7 @@ import Input from '../common/Input';
 import EmptyState from '../common/EmptyState';
 import Spinner from '../common/Spinner';
 import { Package, Search, Grid3x3, List } from 'lucide-react';
+import {CURRENCY_SYMBOL} from '../../config/constants';
 import clsx from 'clsx';
 
 /**
@@ -182,7 +183,7 @@ const QuickProductGrid = ({
                     </h4>
                     <div className="flex items-center justify-between">
                       <span className="text-lg font-bold text-primary-600">
-                        ₪{product.priceGross}
+                        {CURRENCY_SYMBOL}{product.price}
                       </span>
                     </div>
                   </div>

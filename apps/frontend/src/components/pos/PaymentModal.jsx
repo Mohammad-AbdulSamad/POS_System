@@ -5,6 +5,7 @@ import Alert from '../common/Alert';
 import PaymentMethodSelector from './PaymentMethodSelector';
 import CashCalculator from './CashCalculator';
 import { CreditCard, CheckCircle } from 'lucide-react';
+import {CURRENCY_SYMBOL} from '../../config/constants';
 import clsx from 'clsx';
 
 const PaymentModal = ({
@@ -19,6 +20,7 @@ const PaymentModal = ({
   allowPartialPayment = false,
   paymentMethods = ['cash', 'card', 'mobile'],
   className = '',
+  currency = CURRENCY_SYMBOL,
 }) => {
   const [selectedMethod, setSelectedMethod] = useState('cash');
   const [cashAmount, setCashAmount] = useState(total);
@@ -130,21 +132,21 @@ const PaymentModal = ({
               {discount && discount.amount > 0 && (
                 <div className="flex justify-between text-success-600">
                   <span>Discount</span>
-                  <span>-₪{discount.amount.toFixed(2)}</span>
+                  <span>-{currency}{discount.amount.toFixed(2)}</span>
                 </div>
               )}
 
               {tax && tax.amount > 0 && (
                 <div className="flex justify-between">
                   <span className="text-gray-600">Tax ({tax.rate}%)</span>
-                  <span className="font-medium">₪{tax.amount.toFixed(2)}</span>
+                  <span className="font-medium">{currency}{tax.amount.toFixed(2)}</span>
                 </div>
               )}
 
               <div className="pt-2 border-t border-gray-200">
                 <div className="flex justify-between items-center">
                   <span className="font-semibold text-gray-900">Total</span>
-                  <span className="text-2xl font-bold text-gray-900">₪{total.toFixed(2)}</span>
+                  <span className="text-2xl font-bold text-gray-900">{currency}{total.toFixed(2)}</span>
                 </div>
               </div>
             </div>
@@ -181,7 +183,7 @@ const PaymentModal = ({
                     <div className="flex justify-between items-center">
                       <span className="text-sm font-medium text-success-900">Change to Return</span>
                       <span className="text-2xl font-bold text-success-700">
-                        ₪{change.toFixed(2)}
+                        {currency}{change.toFixed(2)}
                       </span>
                     </div>
                   </div>

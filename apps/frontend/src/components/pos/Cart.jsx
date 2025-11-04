@@ -5,6 +5,7 @@ import Button from '../common/Button';
 import Badge from '../common/Badge';
 import EmptyState from '../common/EmptyState';
 import { ShoppingCart, Trash2, Tag, CreditCard } from 'lucide-react';
+import {CURRENCY_SYMBOL} from '../../config/constants';
 import clsx from 'clsx';
 
 /**
@@ -34,6 +35,7 @@ const Cart = ({
   readOnly = false,
   showActions = true,
   className = '',
+  currency = CURRENCY_SYMBOL
 }) => {
   // Calculate totals
   const totals = useMemo(() => {
@@ -125,7 +127,7 @@ const Cart = ({
             <div className="flex items-center justify-between text-sm">
               <span className="text-gray-600">Subtotal</span>
               <span className="font-medium text-gray-900">
-                ₪{totals.subtotal.toFixed(2)}
+                {currency}{totals.subtotal.toFixed(2)}
               </span>
             </div>
 
@@ -158,7 +160,7 @@ const Cart = ({
                   )}
                 </div>
                 <span className="font-medium text-gray-900">
-                  ₪{totals.taxAmount.toFixed(2)}
+                  {currency}{totals.taxAmount.toFixed(2)}
                 </span>
               </div>
             )}
@@ -170,7 +172,7 @@ const Cart = ({
                   Total
                 </span>
                 <span className="text-2xl font-bold text-gray-900">
-                  ₪{totals.total.toFixed(2)}
+                  {currency}{totals.total.toFixed(2)}
                 </span>
               </div>
             </div>
@@ -202,7 +204,7 @@ const Cart = ({
                 loading={loading}
                 disabled={loading}
               >
-                Checkout • ₪{totals.total.toFixed(2)}
+                Checkout • {currency}{totals.total.toFixed(2)}
               </Button>
             </div>
           )}

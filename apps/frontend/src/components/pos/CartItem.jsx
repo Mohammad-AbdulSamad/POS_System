@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Minus, Plus, Trash2, Package } from 'lucide-react';
+import { CURRENCY_SYMBOL } from '../../config/constants';
 import clsx from 'clsx';
 
 const CartItem = ({
@@ -38,7 +39,7 @@ const CartItem = ({
     }
   };
 
-  const itemTotal = item.priceGross * item.quantity;
+  const itemTotal = item.price * item.quantity;
   const hasDiscount = item.originalPrice && item.originalPrice > item.price;
 
   return (
@@ -79,7 +80,7 @@ const CartItem = ({
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="font-semibold text-gray-900">₪{item.price}</span>
+          <span className="font-semibold text-gray-900">{CURRENCY_SYMBOL}{item.price}</span>
           {hasDiscount && (
             <span className="text-xs text-gray-400 line-through">
               ₪{item.originalPrice}
@@ -124,11 +125,11 @@ const CartItem = ({
         {/* Total */}
         <div className="text-right min-w-[60px]">
           <div className="font-semibold text-gray-900 text-sm">
-            ₪{itemTotal}
+            {CURRENCY_SYMBOL}{itemTotal}
           </div>
           {hasDiscount && (
             <div className="text-[10px] text-gray-400 line-through">
-              ₪{(item.originalPrice * item.quantity)}
+              {CURRENCY_SYMBOL}{(item.originalPrice * item.quantity)}
             </div>
           )}
         </div>

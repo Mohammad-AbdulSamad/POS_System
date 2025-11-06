@@ -23,7 +23,7 @@ const Receipt = forwardRef(({
   className = '',
 }, ref) => {
   const {
-    id,
+    receiptNumber,
     items = [],
     subtotal = 0,
     discount = null,
@@ -86,7 +86,7 @@ const Receipt = forwardRef(({
       <div className="mb-4 pb-4 border-b border-dashed border-gray-400 text-xs">
         <div className="flex justify-between mb-1">
           <span className="text-gray-600">Receipt #:</span>
-          <span className="font-semibold">{id}</span>
+          <span className="font-semibold">{receiptNumber}</span>
         </div>
         <div className="flex justify-between mb-1">
           <span className="text-gray-600">Date:</span>
@@ -207,7 +207,7 @@ const Receipt = forwardRef(({
             <rect x="58" y="0" width="6" height="48" fill="black" />
             <rect x="68" y="0" width="4" height="48" fill="black" />
           </svg>
-          <p className="text-xs mt-1">{id}</p>
+          <p className="text-xs mt-1">{receiptNumber}</p>
         </div>
       )}
 

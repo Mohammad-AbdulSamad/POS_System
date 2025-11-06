@@ -5,7 +5,7 @@ import {
   getTransactionById,
   getTransactionsByBranch,
   getTransactionsByCustomer,
-  getTransactionReceipt,
+  getTransactionByReceiptNumber,
   transformTransactionForFrontend,
 } from '../services/transactionService';
 import { useToast } from '../components/common/Toast';
@@ -123,9 +123,9 @@ export const useTransactions = (options = {}) => {
   /**
    * Fetch transaction receipt
    */
-  const fetchReceipt = useCallback(async (id) => {
+  const fetchReceipt = useCallback(async (receiptNumber) => {
     try {
-      const receipt = await getTransactionReceipt(id);
+      const receipt = await getTransactionByReceiptNumber(receiptNumber);
       return transformTransactionForFrontend(receipt);
     } catch (err) {
       console.error('Error fetching receipt:', err);

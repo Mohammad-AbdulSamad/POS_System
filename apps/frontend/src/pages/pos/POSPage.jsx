@@ -1,8 +1,5 @@
-
-//////////////////////////////////////////////////////////////////////////////////////
-// Second Man
-// src/pages/POSPage.jsx - REFACTORED with Hooks & Context
-import { useState, useEffect } from 'react';
+// src/pages/POSPage.jsx - REFACTORED with Common Table Component
+import { useState, useEffect, useMemo } from 'react';
 import MainLayout from '../../components/layout/MainLayout';
 import ProductSearch from '../../components/pos/ProductSearch';
 import BarcodeScanner from '../../components/pos/BarcodeScanner';
@@ -14,7 +11,9 @@ import QuickProductGrid from '../../components/pos/QuickProductGrid';
 import ReceiptPreview from '../../components/pos/ReceiptPreview';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
-import {DEFAULT_TAX_RATE} from '../../config/constants';
+import Table from '../../components/common/Table';
+import Badge from '../../components/common/Badge';
+import { DEFAULT_TAX_RATE } from '../../config/constants';
 
 // Hooks
 import { usePOS } from '../../hooks/usePOS';
@@ -22,14 +21,13 @@ import { useTransactions } from '../../hooks/useTransactions';
 
 import { 
   X, Plus, Barcode, User, Grid3x3, 
-  ShoppingCart, History
+  ShoppingCart, History, Eye
 } from 'lucide-react';
 import clsx from 'clsx';
 
 /**
  * POSPage Component - REFACTORED
- * Now uses custom hooks and context for business logic
- * UI layer is clean and focused on presentation
+ * Now uses custom hooks, context, and common Table component
  */
 const POSPage = () => {
   // UI State (only UI-specific state remains in component)
@@ -82,6 +80,108 @@ const POSPage = () => {
     website: 'www.mystore.com',
   };
 
+  // Format helpers
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(amount);
+  };
+
+  const formatDateTime = (isoString) => {
+    const date = new Date(isoString);
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date);
+  };
+
+  // ✅ Define table columns for recent transactions
+  const transactionColumns = useMemo(() => [
+    {
+      key: 'receiptNumber',
+      header: 'Receipt #',
+      sortable: true,
+      width: '300px',
+      render: (value) => (
+        <span className="font-medium text-gray-900">{value}</span>
+      )
+    },
+    {
+      key: 'timestamp',
+      header: 'Date & Time',
+      sortable: true,
+      width: '300px',
+      render: (value) => (
+        <span className="text-gray-600">{formatDateTime(value)}</span>
+      )
+    },
+    {
+      key: 'customer',
+      header: 'Customer',
+      sortable: false,
+      render: (value) => (
+        <span className="text-gray-900">
+          {value?.name || 'Walk-in'}
+        </span>
+      )
+    },
+    {
+      key: 'items_count',
+      header: 'Items',
+      sortable: true,
+      align: 'right',
+      // width: '80px',
+      render: (value) => (
+        <span className="text-gray-600">{value || 0}</span>
+      )
+    },
+    {
+      key: 'total',
+      header: 'Total',
+      sortable: true,
+      align: 'right',
+      // width: '120px',
+      render: (value) => (
+        <span className="font-semibold text-gray-900">
+          {formatCurrency(value)}
+        </span>
+      )
+    },
+    {
+      key: 'payment',
+      header: 'Payment',
+      sortable: false,
+      // width: '100px',
+      render: (value) => (
+        <Badge 
+          variant={value?.method === 'CASH' ? 'success' : 'info'}
+          size="sm"
+        >
+          {value?.method || 'N/A'}
+        </Badge>
+      )
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      align: 'right',
+      // width: '100px',
+      render: (_, transaction) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={Eye}
+          onClick={() => pos.viewTransaction(transaction)}
+        >
+          View
+        </Button>
+      )
+    }
+  ], [pos]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyPress = (e) => {
@@ -119,24 +219,6 @@ const POSPage = () => {
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [pos]);
-
-  // Format helpers
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
-  };
-
-  const formatDateTime = (isoString) => {
-    const date = new Date(isoString);
-    return new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(date);
-  };
 
   return (
     <MainLayout
@@ -238,13 +320,15 @@ const POSPage = () => {
                 </div>
               )}
               
+              {/* ✅ REFACTORED: Recent Transactions using Table Component */}
               {leftTab === 'transactions' && (
                 <div className="h-full flex flex-col">
+                  {/* Header */}
                   <div className="flex-shrink-0 mb-4 flex items-center justify-between">
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900">Recent Transactions</h3>
                       <p className="text-sm text-gray-600 mt-1">
-                        {transactionsHook.transactions.length} transactions
+                        {transactionsHook.transactions.length} transaction{transactionsHook.transactions.length !== 1 ? 's' : ''}
                       </p>
                     </div>
                     <Button
@@ -257,98 +341,18 @@ const POSPage = () => {
                     </Button>
                   </div>
 
-                  <div className="flex-1 min-h-0 overflow-y-auto border border-gray-200 rounded-lg">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50 sticky top-0 z-10">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                            Receipt #
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                            Date & Time
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                            Customer
-                          </th>
-                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                            Items
-                          </th>
-                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                            Total
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                            Payment
-                          </th>
-                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {transactionsHook.isLoading ? (
-                          <tr>
-                            <td colSpan="7" className="px-4 py-8 text-center text-gray-500">
-                              Loading transactions...
-                            </td>
-                          </tr>
-                        ) : transactionsHook.transactions.length === 0 ? (
-                          <tr>
-                            <td colSpan="7" className="px-4 py-8 text-center text-gray-500">
-                              No transactions found
-                            </td>
-                          </tr>
-                        ) : (
-                          transactionsHook.transactions.map((transaction) => (
-                            <tr key={transaction.id} className="hover:bg-gray-50 transition-colors">
-                              <td className="px-4 py-3 whitespace-nowrap">
-                                <span className="text-sm font-medium text-gray-900">
-                                  {transaction.receiptNumber}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 whitespace-nowrap">
-                                <span className="text-sm text-gray-600">
-                                  {formatDateTime(transaction.timestamp)}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 whitespace-nowrap">
-                                <span className="text-sm text-gray-900">
-                                  {transaction.customer?.name || 'Walk-in'}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-right">
-                                <span className="text-sm text-gray-600">
-                                  {transaction.items?.length || 0}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-right">
-                                <span className="text-sm font-semibold text-gray-900">
-                                  {formatCurrency(transaction.total)}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 whitespace-nowrap">
-                                <span className={clsx(
-                                  'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
-                                  transaction.payment?.method === 'CASH'
-                                    ? 'bg-green-100 text-green-800'
-                                    : 'bg-blue-100 text-blue-800'
-                                )}>
-                                  {transaction.payment?.method || 'N/A'}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-right">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => pos.viewTransaction(transaction)}
-                                >
-                                  View
-                                </Button>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
+                  {/* ✅ Table Component */}
+                  <div className="flex-1 min-h-0 overflow-hidden border border-gray-200 rounded-lg">
+                    <Table
+                      columns={transactionColumns}
+                      data={transactionsHook.transactions}
+                      loading={transactionsHook.isLoading}
+                      emptyMessage="No transactions found. Complete a sale to see it here."
+                      hover={true}
+                      compact={false}
+                      onRowClick={(transaction) => pos.viewTransaction(transaction)}
+                      className="h-full"
+                    />
                   </div>
                 </div>
               )}

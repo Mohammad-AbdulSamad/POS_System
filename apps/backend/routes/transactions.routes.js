@@ -50,4 +50,7 @@ router.delete("/:id",
   transactionsController.deleteTransaction
 );
 
+// ✅ Get transaction by receipt number (for customers/cashiers)
+router.get('/receipt/:receiptNumber', transactionsController.getTransactionReceipt);
+
 export default router;

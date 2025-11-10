@@ -1,5 +1,6 @@
 // src/components/common/SearchBar.jsx
-import { forwardRef, useState } from 'react';
+import { forwardRef, useState, useEffect } from 'react';
+import { useDebounce } from '../../hooks/useDebounce';
 import clsx from 'clsx';
 import { Search, X } from 'lucide-react';
 
@@ -22,6 +23,8 @@ const SearchBar = forwardRef(
     {
       value,
       onChange,
+      onDebouncedChange,  
+      debounce = 2000,       //delay in ms, 0 = disabled, 2000 ms default
       onFocus,
       onBlur,
       onClear,
@@ -36,11 +39,20 @@ const SearchBar = forwardRef(
       inputClassName = '',
       labelClassName = '',
       icon: Icon = Search,
-      ...props
+            ...props
     },
     ref
   ) => {
     const [isFocused, setIsFocused] = useState(false);
+
+    const debouncedValue = useDebounce(value, debounce);
+
+  // ✅ Trigger callback when debounced value changes
+  useEffect(() => {
+    if (debounce > 0 && onDebouncedChange && debouncedValue !== undefined) {
+    onDebouncedChange(debouncedValue);
+  }
+  }, [debouncedValue, onDebouncedChange, debounce]);
 
     // Size styles
     const sizeStyles = {

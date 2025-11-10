@@ -5,6 +5,7 @@ import { Search, Barcode, X, Package } from 'lucide-react';
 import Input from '../common/Input';
 import Spinner from '../common/Spinner';
 import EmptyState from '../common/EmptyState';
+import { useDebounce } from '../../hooks/useDebounce';
 
 /**
  * ProductSearch Component
@@ -35,38 +36,42 @@ const ProductSearch = ({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [filteredProducts, setFilteredProducts] = useState([]);
   
+  
   const searchRef = useRef(null);
   const resultsRef = useRef(null);
 
-  // Filter products based on search query
+  const debouncedQuery = useDebounce(searchQuery, 400); // 300ms is typical
+
+  // Stabilize onSearch reference so rapid re-renders of parent don't retrigger effect
+  const onSearchRef = useRef(onSearch);
+  useEffect(() => { onSearchRef.current = onSearch; }, [onSearch]);
+
+  // Filter products using the debounced query (debounced client-side filtering)
   useEffect(() => {
-    if (searchQuery.trim() === '') {
+    if (debouncedQuery.trim() === '') {
       setFilteredProducts([]);
       setShowResults(false);
       return;
     }
 
-    const query = searchQuery.toLowerCase();
-    const filtered = products.filter(product => 
-      product.name.toLowerCase().includes(query) ||
-      product.sku?.toLowerCase().includes(query) ||
-      product.barcode?.toLowerCase().includes(query)
+    const q = debouncedQuery.toLowerCase();
+    const filtered = products.filter(product =>
+      product.name.toLowerCase().includes(q) ||
+      product.sku?.toLowerCase().includes(q) ||
+      product.barcode?.toLowerCase().includes(q)
     );
 
     setFilteredProducts(filtered);
     setShowResults(true);
     setSelectedIndex(0);
-  }, [searchQuery, products]);
-
-  // Trigger external search
+  }, [debouncedQuery, products]);
+ 
+  // Trigger external search with stabilized ref
   useEffect(() => {
-    if (searchQuery.trim() && onSearch) {
-      const timer = setTimeout(() => {
-        onSearch(searchQuery);
-      }, 300);
-      return () => clearTimeout(timer);
+    if (debouncedQuery.trim() && onSearchRef.current) {
+      onSearchRef.current(debouncedQuery);
     }
-  }, [searchQuery, onSearch]);
+  }, [debouncedQuery]);
 
   // Handle keyboard navigation
   useEffect(() => {

@@ -1,10 +1,13 @@
 // src/components/pos/QuickProductGrid.jsx
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { useDebounce } from '../../hooks/useDebounce';
 import Button from '../common/Button';
 import Badge from '../common/Badge';
 import Input from '../common/Input';
+import SearchBar from '../common/SearchBar'; 
 import EmptyState from '../common/EmptyState';
 import Spinner from '../common/Spinner';
+
 import { Package, Search, Grid3x3, List } from 'lucide-react';
 import {CURRENCY_SYMBOL} from '../../config/constants';
 import clsx from 'clsx';
@@ -36,6 +39,7 @@ const QuickProductGrid = ({
 }) => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebounce(searchQuery, 300);  
 
   const handleCategoryClick = (categoryId) => {
     setSelectedCategory(categoryId);
@@ -49,14 +53,16 @@ const QuickProductGrid = ({
   };
 
   // Filter products
-  const filteredProducts = products.filter(product => {
+  const filteredProducts = useMemo(() => {
+  return products.filter(product => {
     const matchesCategory = selectedCategory === 'all' || product.categoryId === selectedCategory;
-    const matchesSearch = !searchQuery || 
-      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.sku?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = !debouncedSearch ||  // ✅ Uses debounced value
+      product.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      product.sku?.toLowerCase().includes(debouncedSearch.toLowerCase());
     
     return matchesCategory && matchesSearch;
   });
+}, [products, selectedCategory, debouncedSearch]);
 
   return (
     <div className={clsx('flex flex-col h-full', className)}>
@@ -66,13 +72,12 @@ const QuickProductGrid = ({
         <div className="flex gap-2">
           {showSearch && (
             <div className="flex-1">
-              <Input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search quick products..."
-                leftIcon={Search}
-                size="sm"
+              <SearchBar
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search quick products..."
+              size="sm"
+              icon={Search}
               />
             </div>
           )}

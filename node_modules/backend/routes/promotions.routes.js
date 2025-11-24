@@ -1,67 +1,251 @@
-// routes/returns.routes.js
-import { Router } from "express";
-import * as returnsController from "../controllers/returns.controller.js";
-import { authenticate, requireRole } from "../middleware/auth.middleware.js";
+// routes/promotions.routes.js
+import express from 'express';
+import {
+  getAllPromotions,
+  getPromotionById,
+  createPromotion,
+  updatePromotion,
+  deletePromotion,
+  assignProductsToPromotion,
+  assignCategoriesToPromotion,
+  assignBranchesToPromotion,
+  removeProductsFromPromotion,
+  removeCategoriesFromPromotion,
+  removeBranchesFromPromotion,
+  getPromotionProducts,
+  getApplicablePromotionsForProduct,
+  calculateBestPromotion,
+  applyPromotionsToCart,
+  validateCartPromotions,
+  getPromotionStats,
+  calculateDiscount
+} from '../controllers/promotions.controller.js';
+import { authenticate, requireRole } from '../middleware/auth.middleware.js';
 
-const router = Router();
+const router = express.Router();
 
-// All routes require authentication
-router.use(authenticate);
+// ============================================
+// PUBLIC/CASHIER ROUTES (for POS operations)
+// ============================================
 
-// Basic CRUD operations
-// GET all returns - Admin and Manager only (financial sensitive data)
-router.get("/", 
-  requireRole(['ADMIN', 'MANAGER']), 
-  returnsController.getAllReturns
+/**
+ * Get applicable promotions for a specific product
+ * Used during product selection at POS
+ */
+router.get(
+  '/applicable/:productId',
+  authenticate,
+  getApplicablePromotionsForProduct
 );
 
-// GET return by ID - Admin, Manager, and Cashier (cashiers process returns)
-router.get("/:id", returnsController.getReturnById);
-
-// CREATE return - All authenticated users (cashiers process returns)
-router.post("/", returnsController.createReturn);
-
-// UPDATE return - Admin and Manager only (modify return records)
-router.put("/:id", 
-  requireRole(['ADMIN', 'MANAGER']), 
-  returnsController.updateReturn
+/**
+ * Calculate best promotion for a product
+ * Used when adding item to cart
+ */
+router.post(
+  '/calculate-best',
+  authenticate,
+  calculateBestPromotion
 );
 
-// DELETE return - Admin only (critical financial operation)
-router.delete("/:id", 
-  requireRole(['ADMIN']), 
-  returnsController.deleteReturn
+/**
+ * Apply promotions to entire cart
+ * Used before checkout to calculate final prices
+ */
+router.post(
+  '/apply-to-cart',
+  authenticate,
+  applyPromotionsToCart
 );
 
-// Transaction-specific operations
-// GET returns by transaction - All authenticated users
-router.get("/transaction/:transactionId", returnsController.getReturnsByTransaction);
-
-// PROCESS return - All authenticated users (cashiers process returns)
-router.post("/transaction/:transactionId/process", returnsController.processReturn);
-
-// Analytics & Reports - Admin and Manager only
-router.get("/analytics/summary", 
-  requireRole(['ADMIN', 'MANAGER']), 
-  returnsController.getReturnsSummary
+/**
+ * Validate cart promotions before finalizing checkout
+ * Ensures promotions are still valid and amounts are correct
+ */
+router.post(
+  '/validate-cart',
+  authenticate,
+  validateCartPromotions
 );
 
-router.get("/analytics/by-reason", 
-  requireRole(['ADMIN', 'MANAGER']), 
-  returnsController.getReturnsByReason
+/**
+ * Calculate discount for testing/preview
+ * Can be used by cashiers to preview discount
+ */
+router.post(
+  '/calculate-discount',
+  authenticate,
+  calculateDiscount
 );
 
-router.get("/analytics/by-period", 
-  requireRole(['ADMIN', 'MANAGER']), 
-  returnsController.getReturnsByPeriod
+// ============================================
+// MANAGER/ADMIN ROUTES (for promotion management)
+// ============================================
+
+/**
+ * Get all promotions with filtering
+ * Query params: type, active, search, branchId, scope, page, limit, include_relations
+ */
+router.get(
+  '/',
+  authenticate,
+  requireRole(['ADMIN', 'MANAGER']),
+  getAllPromotions
 );
 
-router.get("/analytics/trends", 
-  requireRole(['ADMIN', 'MANAGER']), 
-  returnsController.getReturnTrends
+/**
+ * Get promotion by ID
+ * Query params: include_relations
+ */
+router.get(
+  '/:id',
+  authenticate,
+  requireRole(['ADMIN', 'MANAGER']),
+  getPromotionById
 );
 
-// Validation - All authenticated users (validate before processing)
-router.post("/validate", returnsController.validateReturn);
+/**
+ * Create new promotion
+ * Body: name, description, type, scope, priority, discountPct/discountAmt/buyQty+getQty,
+ *       active, productIds[], categoryIds[], branchIds[]
+ */
+router.post(
+  '/',
+  authenticate,
+  requireRole(['ADMIN', 'MANAGER']),
+  createPromotion
+);
+
+/**
+ * Update promotion
+ * Body: name, description, type, scope, priority, discountPct/discountAmt/buyQty+getQty, active
+ */
+router.patch(
+  '/:id',
+  authenticate,
+  requireRole(['ADMIN', 'MANAGER']),
+  updatePromotion
+);
+
+/**
+ * Delete promotion (hard delete)
+ * Only allowed if promotion hasn't been used in any transactions
+ */
+router.delete(
+  '/:id',
+  authenticate,
+  requireRole(['ADMIN']),
+  deletePromotion
+);
+
+// ============================================
+// PRODUCT ASSIGNMENT ROUTES
+// ============================================
+
+/**
+ * Get products assigned to promotion
+ * Query params: active, branchId, page, limit
+ */
+router.get(
+  '/:id/products',
+  authenticate,
+  requireRole(['ADMIN', 'MANAGER']),
+  getPromotionProducts
+);
+
+/**
+ * Assign products to promotion
+ * Body: productIds[], replace (boolean - default false)
+ * - replace=false: adds to existing products
+ * - replace=true: replaces all products
+ */
+router.post(
+  '/:id/products',
+  authenticate,
+  requireRole(['ADMIN', 'MANAGER']),
+  assignProductsToPromotion
+);
+
+/**
+ * Remove specific products from promotion
+ * Body: productIds[]
+ */
+router.delete(
+  '/:id/products',
+  authenticate,
+  requireRole(['ADMIN', 'MANAGER']),
+  removeProductsFromPromotion
+);
+
+// ============================================
+// CATEGORY ASSIGNMENT ROUTES
+// ============================================
+
+/**
+ * Assign categories to promotion
+ * Body: categoryIds[], replace (boolean - default false)
+ */
+router.post(
+  '/:id/categories',
+  authenticate,
+  requireRole(['ADMIN', 'MANAGER']),
+  assignCategoriesToPromotion
+);
+
+/**
+ * Remove specific categories from promotion
+ * Body: categoryIds[]
+ */
+router.delete(
+  '/:id/categories',
+  authenticate,
+  requireRole(['ADMIN', 'MANAGER']),
+  removeCategoriesFromPromotion
+);
+
+// ============================================
+// BRANCH ASSIGNMENT ROUTES
+// ============================================
+
+/**
+ * Assign branches to promotion
+ * Body: branchIds[] (empty array = applies to all branches), replace (boolean)
+ * - replace=false: adds to existing branches
+ * - replace=true: replaces all branches
+ */
+router.post(
+  '/:id/branches',
+  authenticate,
+  requireRole(['ADMIN', 'MANAGER']),
+  assignBranchesToPromotion
+);
+
+/**
+ * Remove specific branches from promotion
+ * Body: branchIds[]
+ * Note: This doesn't set to "all branches", it just removes specific ones
+ */
+router.delete(
+  '/:id/branches',
+  authenticate,
+  requireRole(['ADMIN', 'MANAGER']),
+  removeBranchesFromPromotion
+);
+
+// ============================================
+// STATISTICS & REPORTING
+// ============================================
+
+/**
+ * Get promotion usage statistics
+ * Query params: startDate, endDate, branchId
+ * Returns usage count, total discount, branch breakdown, recent transactions
+ */
+router.get(
+  '/:id/stats',
+  authenticate,
+  requireRole(['ADMIN', 'MANAGER']),
+  getPromotionStats
+);
 
 export default router;

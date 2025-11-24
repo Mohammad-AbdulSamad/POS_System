@@ -25,6 +25,7 @@ model Branch {
   users          User[]
   categories     Category[]
   stockMovements StockMovement[]
+  promotions  Promotion[] @relation("PromotionBranches")
 }
 
 model Product {
@@ -152,6 +153,11 @@ model TransactionLine {
   discount      Decimal     @default(0) @db.Decimal(12, 2)
   taxAmount     Decimal     @default(0) @db.Decimal(12, 2)
   lineTotal     Decimal     @db.Decimal(12, 2)
+
+   // 🆕 ADD THESE FIELDS
+  promotionId   String?     // Which promotion was applied (if any)
+  promotion     Promotion?  @relation(fields: [promotionId], references: [id])
+  promotionSnapshot Json?    // Snapshot of promotion details at time of sale
 }
 
 model Payment {
@@ -193,11 +199,26 @@ model Promotion {
   active      Boolean       @default(true)
   createdAt   DateTime      @default(now())
 
-  // Relations
-  // Relations
-  products   Product[]  @relation("PromotionProducts")
-  categories Category[] @relation("PromotionCategories")
+    // 🆕 ADD PRIORITY
+  priority    Int           @default(0) // Higher = applied first
+  
+  // 🆕 ADD SCOPE
+  scope       PromotionScope @default(PRODUCT) // PRODUCT or CATEGORY
+  
+  
+  products       Product[]         @relation("PromotionProducts")
+  categories     Category[]        @relation("PromotionCategories")
+  branches       Branch[]          @relation("PromotionBranches")
+  transactionLines TransactionLine[]
 }
+
+
+enum PromotionScope {
+  PRODUCT   // Applied to specific products
+  CATEGORY  // Applied to all products in category
+}
+
+
 
 enum PromotionType {
   PERCENTAGE // e.g., 10% off

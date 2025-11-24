@@ -58,7 +58,7 @@ export const DEFAULT_TAX_RATE = 0.15; // 15%
 // Receipt config
 export const RECEIPT_CONFIG = {
   PRINT_COPIES: 1,
-  AUTO_PRINT: true,
+  AUTO_PRINT: false,
   SHOW_LOGO: true,
   SHOW_BARCODE: true,
 };

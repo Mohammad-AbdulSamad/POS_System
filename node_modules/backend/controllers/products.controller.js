@@ -580,6 +580,12 @@ export const updatePrice = asyncHandler(async (req, res) => {
   if (priceGross === undefined) {
     throw new BadRequestError("Price is required");
   }
+  if (isNaN(parseFloat(priceGross)) || (priceGross < 0 )) {
+    throw new BadRequestError("Invalid price value");
+  }
+  if (cost !== undefined && (isNaN(parseFloat(cost)) || cost < 0)) {
+    throw new BadRequestError("Invalid cost value");
+  }
 
   try {
     const updateData = { priceGross: parseFloat(priceGross) };

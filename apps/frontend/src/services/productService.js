@@ -176,6 +176,20 @@ export const getLowStockProducts = async (branchId, threshold = 10) => {
   }
 };
 
+/** * Get out of stock products
+ * @param {string} branchId Branch ID
+ * @returns {Promise<Array>} Out of stock products
+ */
+export const getOutOfStockProducts = async (branchId) => {
+  try {
+    const data = await get(`/products/branch/${branchId}/out-of-stock`);
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || 'Failed to fetch out of stock products';
+    throw new Error(message);
+  }
+};
+
 /**
  * Update product stock
  * @param {string} id Product ID
@@ -235,6 +249,21 @@ export const toggleProductActive = async (id) => {
     return data;
   } catch (error) {
     const message = error.response?.data?.message || 'Failed to toggle product status';
+    throw new Error(message);
+  }
+};
+
+/**
+ * get Inactive products
+ * @param {string} branchId Branch ID
+ * @returns {Promise<Array>} Inactive products
+ */
+export const getInactiveProducts = async (branchId) => {
+  try {
+    const data = await get(`/products/branch/${branchId}/inactive`);
+    return data;
+  } catch (error) {
+    const message = error.response?.data?.message || 'Failed to fetch inactive products';
     throw new Error(message);
   }
 };

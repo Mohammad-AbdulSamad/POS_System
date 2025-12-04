@@ -5,16 +5,9 @@ import Table from '../common/Table';
 import Badge from '../common/Badge';
 import Button from '../common/Button';
 import SearchBar from '../common/SearchBar';
-import { formatCurrency } from '../../utils/formatters';
+import { CURRENCY_SYMBOL } from '../../config/constants';
 import { Edit, Trash2, Eye, Package } from 'lucide-react';
 import clsx from 'clsx';
-
-/**
- * ProductList Component
- * 
- * Displays a table of products with filtering, sorting, and actions
- * Uses the reusable Table component
- */
 
 const ProductList = ({
   products = [],
@@ -27,13 +20,15 @@ const ProductList = ({
   sortDirection = 'asc',
   onSort,
   searchQuery = '',
-  onSearch,
+  onSearchChange,  // NEW: for immediate updates
+  onSearch,        // for debounced search
   selectedRows = [],
   onSelectRow,
   onSelectAll,
   showActions = true,
 }) => {
   const navigate = useNavigate();
+  const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery);
 
   // Define table columns
   const columns = [
@@ -95,7 +90,7 @@ const ProductList = ({
       width: '100px',
       render: (value) => (
         <span className="font-semibold text-gray-900">
-          {formatCurrency(value)}
+          {CURRENCY_SYMBOL}{value}
         </span>
       ),
     },
@@ -107,7 +102,7 @@ const ProductList = ({
       width: '100px',
       render: (value) => (
         <span className="text-sm text-gray-600">
-          {formatCurrency(value)}
+          {CURRENCY_SYMBOL}{value}
         </span>
       ),
     },
@@ -215,11 +210,13 @@ const ProductList = ({
         <div className="flex items-center gap-4">
           <div className="flex-1">
             <SearchBar
-              value={searchQuery}
-              onChange={onSearch}
-              placeholder="Search products by name, SKU, or barcode..."
-              autoFocus
-            />
+  value={searchQuery}
+  onChange={(e) => onSearchChange(e.target.value)}// No-op, we don't need immediate updates here
+  onDebouncedChange={onSearch}
+  placeholder="Search products by name, SKU, or barcode..."
+  debounce={500}
+  autoFocus
+/>
           </div>
         </div>
       )}
@@ -239,7 +236,7 @@ const ProductList = ({
         onSelectAll={onSelectAll}
         hover
         emptyMessage="No products found. Add your first product to get started."
-        onRowClick={onView}
+        //onRowClick={onView}
       />
     </div>
   );

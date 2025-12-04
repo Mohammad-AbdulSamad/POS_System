@@ -143,7 +143,7 @@ app.use('/api/promotions', promotionsRoutes);
 app.use('/api/returns', returnsRoutes);
 app.use('/api/stock-movements', stockMovementsRoutes);
 app.use('/api/suppliers', suppliersRoutes);
-app.use('/api/taxrates', taxRatesRoutes);
+app.use('/api/tax-rates', taxRatesRoutes);
 app.use('/api/transaction-lines', transactionLinesRoutes);
 app.use('/api/transactions', transactionsRoutes);
 app.use('/api/dashboard', dashboardRoutes);

@@ -1,13 +1,6 @@
 // src/hooks/useTransactions.js
-import { useState, useEffect, useCallback } from 'react';
-import {
-  getAllTransactions,
-  getTransactionById,
-  getTransactionsByBranch,
-  getTransactionsByCustomer,
-  getTransactionByReceiptNumber,
-  transformTransactionForFrontend,
-} from '../services/transactionService';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import * as transactionService from '../services/transactionService';
 import { useToast } from '../components/common/Toast';
 
 /**
@@ -23,6 +16,10 @@ export const useTransactions = (options = {}) => {
   } = options;
 
   const toast = useToast();
+  const toastRef = useRef(toast);
+  useEffect(() => {
+    toastRef.current = toast;
+  }, [toast]);
 
   // State
   const [transactions, setTransactions] = useState([]);
@@ -47,14 +44,13 @@ export const useTransactions = (options = {}) => {
   });
 
   /**
-   * Fetch all transactions with filters
+   * ✅ FIXED: Fetch all transactions with proper response handling
    */
   const fetchTransactions = useCallback(async (params = {}) => {
     setIsLoading(true);
     setError(null);
 
     try {
-      let response;
       const queryParams = {
         page: pagination.page,
         limit: pagination.limit,
@@ -63,79 +59,101 @@ export const useTransactions = (options = {}) => {
         ...params,
       };
 
+      let response;
+
       // Fetch by branch, customer, or all
       if (customerId) {
-        response = await getTransactionsByCustomer(customerId, queryParams);
+        response = await transactionService.getTransactionsByCustomer(customerId, queryParams);
       } else if (branchId) {
-        response = await getTransactionsByBranch(branchId, queryParams);
+        response = await transactionService.getTransactionsByBranch(branchId, queryParams);
       } else {
-        response = await getAllTransactions(queryParams);
+        response = await transactionService.getAllTransactions(queryParams);
       }
 
-      // Transform transactions
-      const transformedTransactions = response.transactions?.map(
-        transformTransactionForFrontend
-      ) || [];
+      // ✅ FIXED: Proper response destructuring
+      const transactionsList = Array.isArray(response)
+        ? response
+        : response?.transactions ?? response?.data ?? [];
+
+      // ✅ FIXED: Transform each transaction
+      const transformedTransactions = transactionsList.map(
+        transactionService.transformTransactionForFrontend
+      );
 
       setTransactions(transformedTransactions);
 
-      // Update pagination
-      if (response.pagination) {
-        setPagination(prev => ({
-          ...prev,
-          ...response.pagination,
-        }));
-      }
+      // ✅ FIXED: Update pagination from response
+      const paginationData = response?.pagination || {
+        page: queryParams.page,
+        limit: queryParams.limit,
+        total: transactionsList.length,
+        pages: Math.ceil(transactionsList.length / queryParams.limit),
+      };
+
+      setPagination(prev => ({
+        ...prev,
+        ...paginationData,
+      }));
 
       return transformedTransactions;
     } catch (err) {
-      console.error('Error fetching transactions:', err);
-      setError(err.message || 'Failed to fetch transactions');
-      toast?.error('Failed to load transactions');
+      const errorMessage = err.message || 'Failed to fetch transactions';
+      console.error('❌ Error fetching transactions:', errorMessage);
+      setError(errorMessage);
+      toastRef.current?.error(errorMessage);
+      setTransactions([]);
       return [];
     } finally {
       setIsLoading(false);
     }
-  }, [branchId, customerId, pagination.page, pagination.limit, filters, toast]);
+  }, [branchId, customerId, pagination.page, pagination.limit, filters]);
 
   /**
-   * Fetch single transaction by ID
+   * ✅ FIXED: Fetch single transaction by ID
    */
   const fetchTransactionById = useCallback(async (id, includeRelations = true) => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const transaction = await getTransactionById(id, includeRelations);
-      const transformed = transformTransactionForFrontend(transaction);
+      const transaction = await transactionService.getTransactionById(id, includeRelations);
+      const transformed = transactionService.transformTransactionForFrontend(transaction);
       setSelectedTransaction(transformed);
       return transformed;
     } catch (err) {
-      console.error('Error fetching transaction:', err);
-      setError(err.message || 'Failed to fetch transaction');
-      toast?.error('Failed to load transaction details');
+      const errorMessage = err.message || 'Failed to fetch transaction';
+      setError(errorMessage);
+      toastRef.current?.error(errorMessage);
       return null;
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, []);
 
   /**
-   * Fetch transaction receipt
+   * ✅ NEW: Fetch transaction by receipt number
    */
-  const fetchReceipt = useCallback(async (receiptNumber) => {
+  const fetchByReceiptNumber = useCallback(async (receiptNumber) => {
+    setIsLoading(true);
+    setError(null);
+
     try {
-      const receipt = await getTransactionByReceiptNumber(receiptNumber);
-      return transformTransactionForFrontend(receipt);
+      const transaction = await transactionService.getTransactionByReceiptNumber(receiptNumber);
+      const transformed = transactionService.transformTransactionForFrontend(transaction);
+      setSelectedTransaction(transformed);
+      return transformed;
     } catch (err) {
-      console.error('Error fetching receipt:', err);
-      toast?.error('Failed to load receipt');
+      const errorMessage = err.message || 'Failed to fetch receipt';
+      setError(errorMessage);
+      toastRef.current?.error(errorMessage);
       return null;
+    } finally {
+      setIsLoading(false);
     }
-  }, [toast]);
+  }, []);
 
   /**
-   * Update filters
+   * Update filters and reset to page 1
    */
   const updateFilters = useCallback((newFilters) => {
     setFilters(prev => ({ ...prev, ...newFilters }));
@@ -143,7 +161,7 @@ export const useTransactions = (options = {}) => {
   }, []);
 
   /**
-   * Clear filters
+   * Clear all filters
    */
   const clearFilters = useCallback(() => {
     setFilters({
@@ -156,7 +174,7 @@ export const useTransactions = (options = {}) => {
   }, []);
 
   /**
-   * Search transactions
+   * Search transactions locally (after fetched)
    */
   const searchTransactions = useCallback((query) => {
     if (!query) return transactions;
@@ -185,12 +203,15 @@ export const useTransactions = (options = {}) => {
   }, [updateFilters]);
 
   /**
-   * Pagination controls
+   * Pagination: Go to specific page
    */
   const goToPage = useCallback((page) => {
     setPagination(prev => ({ ...prev, page }));
   }, []);
 
+  /**
+   * Pagination: Next page
+   */
   const nextPage = useCallback(() => {
     setPagination(prev => {
       if (prev.page < prev.pages) {
@@ -200,6 +221,9 @@ export const useTransactions = (options = {}) => {
     });
   }, []);
 
+  /**
+   * Pagination: Previous page
+   */
   const prevPage = useCallback(() => {
     setPagination(prev => {
       if (prev.page > 1) {
@@ -209,12 +233,15 @@ export const useTransactions = (options = {}) => {
     });
   }, []);
 
+  /**
+   * Pagination: Change page size
+   */
   const setPageSize = useCallback((limit) => {
     setPagination(prev => ({ ...prev, limit, page: 1 }));
   }, []);
 
   /**
-   * Get transactions for today
+   * Get transactions for today only
    */
   const getTodayTransactions = useCallback(() => {
     const today = new Date();
@@ -229,16 +256,17 @@ export const useTransactions = (options = {}) => {
   }, [transactions]);
 
   /**
-   * Calculate totals
+   * Calculate totals for all loaded transactions
    */
   const calculateTotals = useCallback(() => {
     return transactions.reduce(
       (acc, t) => ({
-        totalSales: acc.totalSales + (t.total || 0),
+        totalSales: acc.totalSales + (parseFloat(t.total) || 0),
         totalTransactions: acc.totalTransactions + 1,
         totalItems: acc.totalItems + (t.items?.length || 0),
+        totalTax: acc.totalTax + (parseFloat(t.tax?.amount) || 0),
       }),
-      { totalSales: 0, totalTransactions: 0, totalItems: 0 }
+      { totalSales: 0, totalTransactions: 0, totalItems: 0, totalTax: 0 }
     );
   }, [transactions]);
 
@@ -249,11 +277,12 @@ export const useTransactions = (options = {}) => {
     const todayTxns = getTodayTransactions();
     return todayTxns.reduce(
       (acc, t) => ({
-        totalSales: acc.totalSales + (t.total || 0),
+        totalSales: acc.totalSales + (parseFloat(t.total) || 0),
         totalTransactions: acc.totalTransactions + 1,
         totalItems: acc.totalItems + (t.items?.length || 0),
+        totalTax: acc.totalTax + (parseFloat(t.tax?.amount) || 0),
       }),
-      { totalSales: 0, totalTransactions: 0, totalItems: 0 }
+      { totalSales: 0, totalTransactions: 0, totalItems: 0, totalTax: 0 }
     );
   }, [getTodayTransactions]);
 
@@ -273,13 +302,13 @@ export const useTransactions = (options = {}) => {
   }, [transactions]);
 
   /**
-   * Auto-fetch on mount or when dependencies change
+   * Auto-fetch on mount and when dependencies change
    */
   useEffect(() => {
     if (autoFetch) {
       fetchTransactions();
     }
-  }, [pagination.page, pagination.limit, filters.status, filters.startDate, filters.endDate]);
+  }, [pagination.page, pagination.limit, autoFetch]);
 
   return {
     // Data
@@ -306,7 +335,7 @@ export const useTransactions = (options = {}) => {
     // Fetch operations
     fetchTransactions,
     fetchTransactionById,
-    fetchReceipt,
+    fetchByReceiptNumber, // ✅ NEW
     refresh: fetchTransactions,
 
     // Computed data
@@ -319,3 +348,5 @@ export const useTransactions = (options = {}) => {
     setSelectedTransaction,
   };
 };
+
+export default useTransactions;

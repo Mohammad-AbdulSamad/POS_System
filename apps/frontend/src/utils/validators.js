@@ -2,10 +2,35 @@
 
 /**
  * Validation Utilities
- * 
+ *
  * Reusable validation functions for forms and data validation.
  * Pure functions that return error messages or null if valid.
  */
+
+/**
+ * Validation constants used across the app
+ */
+export const VALIDATION = {
+  // Product / Name
+  MIN_PRODUCT_NAME_LENGTH: 3,
+  MAX_PRODUCT_NAME_LENGTH: 255,
+
+  // Price limits
+  MIN_PRICE: 0,
+  MAX_PRICE: 10000000,
+
+  // Stock limits
+  MIN_STOCK: 0,
+  MAX_STOCK: 10000000,
+
+  // SKU / Barcode
+  SKU_REGEX: /^[A-Za-z0-9-_]+$/,         // Accept letters, numbers, -, _
+  BARCODE_REGEX: /^\d{8,13}$/,           // 8-13 digits (EAN/UPC-ish)
+
+  // Phone
+  // Accepts +country prefix or local numbers with common separators
+  PHONE_REGEX: /^\+?[0-9\s().-]{7,20}$/,
+};
 
 /**
  * Validate email address
@@ -92,7 +117,10 @@ export const validatePasswordMatch = (password, confirmPassword) => {
  * @returns {string|null} - Error message or null if valid
  */
 export const validateRequired = (value, fieldName = 'This field') => {
-  if (!value || (typeof value === 'string' && !value.trim())) {
+  if (value === null || value === undefined) {
+    return `${fieldName} is required`;
+  }
+  if (typeof value === 'string' && value.trim() === '') {
     return `${fieldName} is required`;
   }
   return null;
@@ -100,21 +128,42 @@ export const validateRequired = (value, fieldName = 'This field') => {
 
 /**
  * Validate phone number
+ * - Optional by default: returns null when empty.
+ * - Returns a string error when invalid.
  * @param {string} phone - Phone number to validate
  * @returns {string|null} - Error message or null if valid
  */
 export const validatePhone = (phone) => {
-  if (!phone) {
-    return 'Phone number is required';
+  if (phone === null || phone === undefined || String(phone).trim() === '') {
+    // Optional by default
+    return null;
   }
 
-  // Remove all non-numeric characters
-  const cleaned = phone.replace(/\D/g, '');
+  // Keep + prefix and digits, remove other characters
+  const cleaned = String(phone).trim();
 
-  if (cleaned.length < 10) {
+  if (!VALIDATION.PHONE_REGEX.test(cleaned)) {
     return 'Please enter a valid phone number';
   }
 
+  // Basic digits length check (ignore + and punctuation)
+  const digits = cleaned.replace(/\D/g, '');
+  if (digits.length < 7) {
+    return 'Please enter a valid phone number';
+  }
+
+  return null;
+};
+
+/**
+ * Validate phone number and require it.
+ */
+export const validatePhoneRequired = (phone) => {
+  const err = validatePhone(phone);
+  if (err) return err;
+  if (phone === null || phone === undefined || String(phone).trim() === '') {
+    return 'Phone number is required';
+  }
   return null;
 };
 
@@ -158,7 +207,7 @@ export const validateNumber = (value, options = {}) => {
  * @returns {string|null} - Error message or null if valid
  */
 export const validatePrice = (price) => {
-  if (!price || price === '') {
+  if (price === '' || price === null || price === undefined) {
     return 'Price is required';
   }
 
@@ -170,6 +219,13 @@ export const validatePrice = (price) => {
 
   if (num < 0) {
     return 'Price cannot be negative';
+  }
+
+  if (num < VALIDATION.MIN_PRICE) {
+    return `Price must be at least ${VALIDATION.MIN_PRICE}`;
+  }
+  if (num > VALIDATION.MAX_PRICE) {
+    return `Price cannot exceed ${VALIDATION.MAX_PRICE}`;
   }
 
   return null;
@@ -185,11 +241,11 @@ export const validateSKU = (sku) => {
     return 'SKU is required';
   }
 
-  if (sku.length < 3) {
+  if (String(sku).length < 3) {
     return 'SKU must be at least 3 characters';
   }
 
-  if (!/^[A-Za-z0-9-_]+$/.test(sku)) {
+  if (!VALIDATION.SKU_REGEX.test(String(sku))) {
     return 'SKU can only contain letters, numbers, hyphens, and underscores';
   }
 
@@ -290,14 +346,14 @@ export const hasErrors = (errors) => {
 
 /**
  * Example usage with validateForm:
- * 
+ *
  * const loginRules = {
  *   email: validateEmail,
  *   password: (value) => validatePassword(value, { minLength: 6 }),
  * };
- * 
+ *
  * const errors = validateForm(formData, loginRules);
- * 
+ *
  * if (hasErrors(errors)) {
  *   // Show errors
  * } else {
@@ -306,11 +362,13 @@ export const hasErrors = (errors) => {
  */
 
 export default {
+  VALIDATION,
   validateEmail,
   validatePassword,
   validatePasswordMatch,
   validateRequired,
   validatePhone,
+  validatePhoneRequired,
   validateNumber,
   validatePrice,
   validateSKU,

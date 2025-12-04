@@ -4,7 +4,7 @@ import Table from '../common/Table';
 import Badge from '../common/Badge';
 import Spinner from '../common/Spinner';
 import { formatDateTime } from '../../utils/formatters';
-import { STOCK_MOVEMENT_LABELS } from '../../utils/constants';
+
 import { TrendingUp, TrendingDown, Package } from 'lucide-react';
 import * as productService from '../../services/productService';
 
@@ -87,7 +87,7 @@ const StockHistoryTable = ({
       width: '180px',
       render: (value) => (
         <Badge variant="gray" size="sm">
-          {STOCK_MOVEMENT_LABELS[value] || value}
+          {[value] || value}
         </Badge>
       ),
     },

@@ -24,7 +24,7 @@
 // export default router;
 // routes/taxRates.routes.js
 import { Router } from "express";
-import * as taxRatesController from "../controllers/taxrates.controller.js";
+import * as taxRatesController from "../controllers/taxRates.controller.js";
 import { authenticate, requireRole } from "../middleware/auth.middleware.js";
 
 const router = Router();

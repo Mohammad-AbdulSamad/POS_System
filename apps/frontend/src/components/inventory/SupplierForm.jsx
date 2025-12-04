@@ -1,11 +1,12 @@
 // src/components/inventory/SupplierForm.jsx
 import { useForm } from 'react-hook-form';
+import { useEffect } from 'react';
 import Modal from '../common/Modal';
 import Button from '../common/Button';
 import Input from '../common/Input';
 import TextArea from '../common/TextArea';
 import { Save, X } from 'lucide-react';
-import { VALIDATION } from '../../utils/constants';
+import { validatePhone, validateRequired } from '../../utils/validators';
 
 /**
  * SupplierForm Component
@@ -28,12 +29,29 @@ const SupplierForm = ({
     formState: { errors },
     reset,
   } = useForm({
-    defaultValues: initialData || {
+    defaultValues: {
       name: '',
       phone: '',
       address: '',
     },
   });
+
+  // ✅ Update form when initialData changes
+  useEffect(() => {
+    if (isOpen && initialData) {
+      reset({
+        name: initialData.name || '',
+        phone: initialData.phone || '',
+        address: initialData.address || '',
+      });
+    } else if (isOpen && !initialData) {
+      reset({
+        name: '',
+        phone: '',
+        address: '',
+      });
+    }
+  }, [initialData, isOpen, reset]);
 
   const onFormSubmit = (data) => {
     onSubmit(data);
@@ -49,7 +67,7 @@ const SupplierForm = ({
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title={isEdit ? 'Edit Supplier' : 'Add Supplier'}
+      title={isEdit && initialData?.name ? `Edit ${initialData.name}` : 'Add Supplier'}
       size="md"
     >
       <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
@@ -58,11 +76,12 @@ const SupplierForm = ({
           label="Supplier Name"
           required
           {...register('name', {
-            required: 'Supplier name is required',
-            minLength: {
-              value: 2,
-              message: 'Name must be at least 2 characters',
-            },
+            validate: (value) => {
+              const reqErr = validateRequired(value, 'Supplier name');
+              if (reqErr) return reqErr;
+              if (String(value).trim().length < 2) return 'Name must be at least 2 characters';
+              return true;
+            }
           })}
           error={errors.name?.message}
           placeholder="e.g., ABC Wholesale Ltd."
@@ -74,9 +93,10 @@ const SupplierForm = ({
           label="Phone Number"
           type="tel"
           {...register('phone', {
-            pattern: {
-              value: VALIDATION.PHONE_REGEX,
-              message: 'Please enter a valid phone number',
+            validate: (value) => {
+              // phone is optional; only validate if provided
+              if (!value || String(value).trim() === '') return true;
+              return validatePhone(value) || true;
             },
           })}
           error={errors.phone?.message}

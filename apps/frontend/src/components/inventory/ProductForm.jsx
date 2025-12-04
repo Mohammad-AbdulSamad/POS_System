@@ -1,20 +1,29 @@
-// src/components/inventory/ProductForm.jsx
+// src/components/inventory/ProductForm.jsx - WITH BRANCH LOGIC
 import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
+import { useAuth } from '../../hooks/useAuth';
+import { useTaxRates } from '../../hooks/useTaxRates';
 import Button from '../common/Button';
 import Input from '../common/Input';
 import TextArea from '../common/TextArea';
 import Select from '../common/Select';
 import FileUpload from '../common/FileUpload';
 import Alert from '../common/Alert';
-import { Save, X, Upload, Trash2 } from 'lucide-react';
-import { VALIDATION } from '../../utils/constants';
+import { Save, X, Upload, Trash2, Info } from 'lucide-react';
+import {
+  VALIDATION,
+  validateRequired,
+  validatePrice,
+  validateNumber,
+  validateSKU,
+} from '../../utils/validators';
 
 /**
- * ProductForm Component
+ * ProductForm Component - WITH BRANCH LOGIC
  * 
  * Form for creating/editing products
- * Uses react-hook-form for validation
+ * - Admin/Manager can select any branch
+ * - Cashier/Stock Manager locked to their branch
  */
 
 const ProductForm = ({
@@ -27,13 +36,22 @@ const ProductForm = ({
   onCancel,
   loading = false,
 }) => {
+  const { user } = useAuth();
+  
   const isEdit = !!initialData;
   const [imagePreview, setImagePreview] = useState(initialData?.imageUrl || null);
   const [imageFile, setImageFile] = useState(null);
 
+  // ✅ Check if user can change branch
+  const canChangeBranch = user && ['ADMIN', 'MANAGER'].includes(user.role);
+  
+  // ✅ Get default branch ID
+  const defaultBranchId = initialData?.branchId || user?.branchId || '';
+
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors },
     watch,
     setValue,
@@ -52,7 +70,8 @@ const ProductForm = ({
       categoryId: '',
       supplierId: '',
       taxRateId: '',
-      branchId: '',
+      branchId: defaultBranchId,
+      branchIds: [],
       description: '',
       active: true,
     },
@@ -61,7 +80,7 @@ const ProductForm = ({
   // Watch price and cost for profit calculation
   const priceGross = watch('priceGross');
   const cost = watch('cost');
-  const profitMargin = priceGross && cost && priceGross > 0
+  const profitMargin = priceGross && cost && priceGross > 0    
     ? (((priceGross - cost) / priceGross) * 100).toFixed(2)
     : 0;
 
@@ -89,7 +108,8 @@ const ProductForm = ({
 
   // Handle form submission
   const onFormSubmit = (data) => {
-    // Convert numeric fields
+    console.log('📝 Form submit data:', data);
+    
     const formData = {
       ...data,
       priceGross: parseFloat(data.priceGross),
@@ -98,20 +118,28 @@ const ProductForm = ({
       minStock: parseInt(data.minStock || 0),
       reorderPoint: parseInt(data.reorderPoint || 10),
       active: data.active === 'true' || data.active === true,
+      // ✅ Handle multiple branches or single branchId
+      branchId: Array.isArray(data.branchIds) && data.branchIds.length > 0 
+        ? data.branchIds[0]  // Take first for branchId field (if needed)
+        : data.branchId || user?.branchId,
+      branchIds: data.branchIds, // Store full array for backend
     };
 
-    // Add image file if present
     if (imageFile) {
       formData.imageFile = imageFile;
     }
 
+    console.log('📤 Submitting formData:', formData);
     onSubmit(formData);
   };
 
   // Reset form when initialData changes
   useEffect(() => {
     if (initialData) {
-      reset(initialData);
+      reset({
+        ...initialData,
+        branchIds: initialData.branchId ? [initialData.branchId] : [],
+      });
       setImagePreview(initialData.imageUrl || null);
     }
   }, [initialData, reset]);
@@ -122,6 +150,13 @@ const ProductForm = ({
       {Object.keys(errors).length > 0 && (
         <Alert variant="danger">
           Please fix the validation errors below
+        </Alert>
+      )}
+
+      {/* ✅ Branch Assignment Info for Non-Admins */}
+      {!canChangeBranch && user?.branch && (
+        <Alert variant="info" icon={Info}>
+          This product will be assigned to your branch: <strong>{user.branch.name}</strong>
         </Alert>
       )}
 
@@ -137,14 +172,14 @@ const ProductForm = ({
               label="Product Name"
               required
               {...register('name', {
-                required: 'Product name is required',
-                minLength: {
-                  value: VALIDATION.MIN_PRODUCT_NAME_LENGTH,
-                  message: `Name must be at least ${VALIDATION.MIN_PRODUCT_NAME_LENGTH} characters`,
-                },
-                maxLength: {
-                  value: VALIDATION.MAX_PRODUCT_NAME_LENGTH,
-                  message: `Name must not exceed ${VALIDATION.MAX_PRODUCT_NAME_LENGTH} characters`,
+                validate: (value) => {
+                  const req = validateRequired(value, 'Product name');
+                  if (req) return req;
+                  if (String(value).trim().length < VALIDATION.MIN_PRODUCT_NAME_LENGTH)
+                    return `Name must be at least ${VALIDATION.MIN_PRODUCT_NAME_LENGTH} characters`;
+                  if (String(value).trim().length > VALIDATION.MAX_PRODUCT_NAME_LENGTH)
+                    return `Name must not exceed ${VALIDATION.MAX_PRODUCT_NAME_LENGTH} characters`;
+                  return true;
                 },
               })}
               error={errors.name?.message}
@@ -157,10 +192,12 @@ const ProductForm = ({
             label="SKU"
             required
             {...register('sku', {
-              required: 'SKU is required',
-              pattern: {
-                value: VALIDATION.SKU_REGEX,
-                message: 'SKU must contain only uppercase letters, numbers, and hyphens',
+              validate: (value) => {
+                const req = validateRequired(value, 'SKU');
+                if (req) return req;
+                const skuErr = validateSKU(value);
+                if (skuErr) return skuErr;
+                return true;
               },
             })}
             error={errors.sku?.message}
@@ -171,73 +208,96 @@ const ProductForm = ({
           <Input
             label="Barcode"
             {...register('barcode', {
-              pattern: {
-                value: VALIDATION.BARCODE_REGEX,
-                message: 'Barcode must be 8-13 digits',
+              validate: (value) => {
+                if (!value || String(value).trim() === '') return true;
+                if (!VALIDATION.BARCODE_REGEX.test(String(value).trim())) return 'Barcode must be 8-13 digits';
+                return true;
               },
             })}
             error={errors.barcode?.message}
             placeholder="e.g., 1234567890123"
           />
 
+          {/* ✅ Branches - MULTIPLE SELECT with Controller */}
+          {canChangeBranch ? (
+            <div className="md:col-span-2">
+              <Controller
+                name="branchIds"
+                control={control}
+                defaultValue={[]}
+                rules={{
+                  validate: (value) => {
+                    if (!Array.isArray(value) || value.length === 0) {
+                      return 'Select at least one branch';
+                    }
+                    return true;
+                  },
+                }}
+                render={({ field }) => (
+                  <Select
+                    label="Branches"
+                    multiple
+                    required
+                    name={field.name}
+                    value={field.value}
+                    onChange={(e) => {
+                      console.log('🟡 Branch select onChange:', e.target.value);
+                      field.onChange(e.target.value);
+                    }}
+                    error={errors.branchIds?.message}
+                    options={branches.map(b => ({ value: String(b.id), label: b.name }))}
+                    placeholder="Select branches..."
+                  />
+                )}
+              />
+            </div>
+          ) : (
+            <Input
+              label="Branch"
+              value={user?.branch?.name || 'No Branch'}
+              disabled
+              className="bg-gray-50"
+            />
+          )}
+
           {/* Category */}
           <Select
             label="Category"
             {...register('categoryId')}
             error={errors.categoryId?.message}
-          >
-            <option value="">Select category</option>
-            {categories.map((cat) => (
-              <option key={cat.id} value={cat.id}>
-                {cat.name}
-              </option>
-            ))}
-          </Select>
+            options={[
+              { value: '', label: 'Select category' }, 
+              ...categories.map(c => ({ value: String(c.id), label: c.name }))
+            ]}
+          />
 
           {/* Supplier */}
           <Select
             label="Supplier"
-            {...register('supplierId')}
-            error={errors.supplierId?.message}
-          >
-            <option value="">Select supplier</option>
-            {suppliers.map((sup) => (
-              <option key={sup.id} value={sup.id}>
-                {sup.name}
-              </option>
-            ))}
-          </Select>
-
-          {/* Branch */}
-          <Select
-            label="Branch"
             required
-            {...register('branchId', {
-              required: 'Branch is required',
+            {...register('supplierId', {
+              validate: (value) => validateRequired(value, 'Supplier') || true,
             })}
-            error={errors.branchId?.message}
-          >
-            <option value="">Select branch</option>
-            {branches.map((branch) => (
-              <option key={branch.id} value={branch.id}>
-                {branch.name}
-              </option>
-            ))}
-          </Select>
+            error={errors.supplierId?.message}
+            options={[
+              { value: '', label: 'Select supplier' }, 
+              ...suppliers.map(s => ({ value: String(s.id), label: s.name }))
+            ]}
+          />
 
           {/* Tax Rate */}
           <Select
             label="Tax Rate"
-            {...register('taxRateId')}
+            required
+            {...register('taxRateId', {
+              validate: (value) => validateRequired(value, 'Tax Rate') || true,
+            })}
             error={errors.taxRateId?.message}
-          >
-            <option value="">Select tax rate</option>
-            {taxRates.map((tax) => (
-              <option key={tax.id} value={tax.id}>
-                {tax.name} ({tax.rate}%)
-              </option>
-            ))}
-          </Select>
+            options={[
+              { value: '', label: 'Select tax rate' }, 
+              ...taxRates.map(t => ({ value: String(t.id), label: `${t.name} (${t.rate}%)` }))
+            ]}
+          />
         </div>
       </div>
 
@@ -254,14 +314,10 @@ const ProductForm = ({
             step="0.01"
             required
             {...register('priceGross', {
-              required: 'Selling price is required',
-              min: {
-                value: VALIDATION.MIN_PRICE,
-                message: 'Price must be positive',
-              },
-              max: {
-                value: VALIDATION.MAX_PRICE,
-                message: `Price cannot exceed ${VALIDATION.MAX_PRICE}`,
+              validate: (value) => {
+                const msg = validatePrice(value);
+                if (msg) return msg;
+                return true;
               },
             })}
             error={errors.priceGross?.message}
@@ -275,10 +331,10 @@ const ProductForm = ({
             step="0.01"
             required
             {...register('cost', {
-              required: 'Cost price is required',
-              min: {
-                value: VALIDATION.MIN_PRICE,
-                message: 'Cost must be positive',
+              validate: (value) => {
+                const msg = validatePrice(value);
+                if (msg) return msg;
+                return true;
               },
             })}
             error={errors.cost?.message}
@@ -307,14 +363,10 @@ const ProductForm = ({
             type="number"
             required
             {...register('stock', {
-              required: 'Stock quantity is required',
-              min: {
-                value: VALIDATION.MIN_STOCK,
-                message: 'Stock cannot be negative',
-              },
-              max: {
-                value: VALIDATION.MAX_STOCK,
-                message: `Stock cannot exceed ${VALIDATION.MAX_STOCK}`,
+              validate: (value) => {
+                const msg = validateNumber(value, { min: VALIDATION.MIN_STOCK, max: VALIDATION.MAX_STOCK, integer: true });
+                if (msg) return msg;
+                return true;
               },
             })}
             error={errors.stock?.message}
@@ -334,9 +386,11 @@ const ProductForm = ({
             label="Min Stock"
             type="number"
             {...register('minStock', {
-              min: {
-                value: 0,
-                message: 'Min stock cannot be negative',
+              validate: (value) => {
+                if (value === '' || value === null || value === undefined) return true;
+                const msg = validateNumber(value, { min: 0, integer: true });
+                if (msg) return msg;
+                return true;
               },
             })}
             error={errors.minStock?.message}
@@ -348,9 +402,11 @@ const ProductForm = ({
             label="Reorder Point"
             type="number"
             {...register('reorderPoint', {
-              min: {
-                value: 0,
-                message: 'Reorder point cannot be negative',
+              validate: (value) => {
+                if (value === '' || value === null || value === undefined) return true;
+                const msg = validateNumber(value, { min: 0, integer: true });
+                if (msg) return msg;
+                return true;
               },
             })}
             error={errors.reorderPoint?.message}
@@ -418,10 +474,11 @@ const ProductForm = ({
           label="Status"
           {...register('active')}
           error={errors.active?.message}
-        >
-          <option value={true}>Active</option>
-          <option value={false}>Inactive</option>
-        </Select>
+          options={[
+            { value: 'true', label: 'Active' },
+            { value: 'false', label: 'Inactive' },
+          ]}
+        />
       </div>
 
       {/* Form Actions */}

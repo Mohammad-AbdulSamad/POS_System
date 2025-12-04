@@ -3,21 +3,23 @@ import { useState, useEffect, useCallback } from 'react';
 import { useCart } from '../context/CartContext';
 import { useToast } from '../components/common/Toast';
 import {
-  getAllTransactions,
   createTransaction,
   transformTransactionForFrontend,
   validateTransactionData,
+  getTransactionsSummary, // ✅ NEW: Use lightweight fetch
+  getTransactionDetails, // ✅ NEW: Use full detail fetch
 } from '../services/transactionService';
 import { getAllProducts } from '../services/productService';
 
 /**
- * Main POS hook - Manages all POS operations and state
- * Orchestrates products, transactions, payments, and UI state
+ * ✅ UPDATED: Main POS hook with optimized transaction fetching
+ * - Lists use lightweight data
+ * - Receipt views fetch full details on-demand
  */
 export const usePOS = (config = {}) => {
   const {
     taxRate = 17,
-    autoRefreshInterval = null, // Auto-refresh transactions (ms)
+    autoRefreshInterval = null,
   } = config;
 
   const toast = useToast();
@@ -26,9 +28,10 @@ export const usePOS = (config = {}) => {
   // Data state
   const [products, setProducts] = useState([]);
   const [transactions, setTransactions] = useState([]);
-  const [customers, setCustomers] = useState([]); // TODO: Add customer service
+  const [customers, setCustomers] = useState([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(true);
+  const [isFetchingTransactionDetails, setIsFetchingTransactionDetails] = useState(false); // ✅ NEW
 
   // UI state
   const [selectedTransaction, setSelectedTransaction] = useState(null);
@@ -99,14 +102,16 @@ export const usePOS = (config = {}) => {
   }, [toast]);
 
   /**
-   * Fetch transactions from backend
+   * ✅ UPDATED: Fetch transactions with LIGHTWEIGHT data for list display
    */
   const fetchTransactions = useCallback(async (params = {}) => {
     setIsLoadingTransactions(true);
     try {
-      const response = await getAllTransactions({
+      console.log('📋 Fetching transactions (lightweight)...');
+      
+      // ✅ Use lightweight summary fetch
+      const response = await getTransactionsSummary({
         limit: 50,
-        include_relations: 'false',
         ...params,
       });
 
@@ -114,6 +119,7 @@ export const usePOS = (config = {}) => {
         transformTransactionForFrontend
       ) || [];
 
+      console.log(`✅ Loaded ${transformedTransactions.length} transactions (summary only)`);
       setTransactions(transformedTransactions);
       return transformedTransactions;
     } catch (error) {
@@ -122,6 +128,30 @@ export const usePOS = (config = {}) => {
       return [];
     } finally {
       setIsLoadingTransactions(false);
+    }
+  }, [toast]);
+
+  /**
+   * ✅ NEW: Fetch full transaction details by ID
+   * Used when viewing a receipt
+   */
+  const fetchTransactionDetails = useCallback(async (transactionId) => {
+    setIsFetchingTransactionDetails(true);
+    try {
+      console.log('🔍 Fetching full transaction details:', transactionId);
+      
+      // ✅ Fetch with full relations
+      const fullTransaction = await getTransactionDetails(transactionId);
+      const transformed = transformTransactionForFrontend(fullTransaction);
+      
+      console.log('✅ Transaction details loaded:', transformed);
+      return transformed;
+    } catch (error) {
+      console.error('❌ Error fetching transaction details:', error);
+      toast.error('Failed to load transaction details');
+      throw error;
+    } finally {
+      setIsFetchingTransactionDetails(false);
     }
   }, [toast]);
 
@@ -224,12 +254,10 @@ export const usePOS = (config = {}) => {
 
   /**
    * Complete transaction and payment
-   * ✅ FIXED: Properly handles discount data
    */
   const completeTransaction = useCallback(async (paymentData) => {
     const totals = calculateTotals();
 
-    // ✅ FIX: Ensure discount object has all required fields
     const discountData = cart.activeCart.discount.amount > 0 ? {
       type: cart.activeCart.discount.type || 'percentage',
       value: cart.activeCart.discount.value || 0,
@@ -240,7 +268,6 @@ export const usePOS = (config = {}) => {
 
     console.log('💳 Completing transaction with discount:', discountData);
 
-    // Build transaction data
     const transactionData = {
       items: cart.activeCart.items,
       subtotal: totals.subtotal,
@@ -259,7 +286,6 @@ export const usePOS = (config = {}) => {
       timestamp: new Date().toISOString(),
     };
 
-    // Validate transaction
     const validationErrors = validateTransactionData(transactionData);
     if (validationErrors.length > 0) {
       toast.error(validationErrors[0]);
@@ -271,18 +297,13 @@ export const usePOS = (config = {}) => {
       const createdTransaction = await createTransaction(transactionData);
       console.log('✅ Created transaction:', createdTransaction);
 
-      // Transform response
+      // Transform response (already has full details since we just created it)
       const frontendTransaction = transformTransactionForFrontend(createdTransaction);
 
-      // Update state
+      // Update state with full transaction details
       setSelectedTransaction(frontendTransaction);
-
-      console.log('📊 Transaction completed:', {
-        original: transactionData,
-        created: createdTransaction,
-        transformed: frontendTransaction
-      });
       
+      // Add to transactions list (lightweight version is fine for list)
       setTransactions(prev => [frontendTransaction, ...prev]);
 
       // Clear cart
@@ -305,12 +326,35 @@ export const usePOS = (config = {}) => {
   }, [cart, calculateTotals, taxRate, toast]);
 
   /**
-   * View transaction details
+   * ✅ UPDATED: View transaction details - Fetch full data before showing receipt
+   * This is called when user clicks "View" on a transaction
    */
-  const viewTransaction = useCallback((transaction) => {
-    setSelectedTransaction(transaction);
-    openModal('receipt');
-  }, []);
+  const viewTransaction = useCallback(async (transaction) => {
+    try {
+      console.log('👁️ Viewing transaction:', transaction.id);
+      
+      // Check if transaction already has full details (items array)
+      const hasFullDetails = transaction.items && Array.isArray(transaction.items) && transaction.items.length > 0;
+      
+      if (hasFullDetails) {
+        console.log('✅ Transaction already has full details');
+        setSelectedTransaction(transaction);
+        openModal('receipt');
+      } else {
+        console.log('⏳ Fetching full transaction details...');
+        
+        // ✅ Fetch full details from backend
+        const fullTransaction = await fetchTransactionDetails(transaction.id);
+        
+        // Set the full transaction and open modal
+        setSelectedTransaction(fullTransaction);
+        openModal('receipt');
+      }
+    } catch (error) {
+      console.error('❌ Error viewing transaction:', error);
+      toast.error('Failed to load transaction details');
+    }
+  }, [fetchTransactionDetails, toast]);
 
   /**
    * Start new transaction
@@ -337,6 +381,52 @@ export const usePOS = (config = {}) => {
     setModals(prev => ({ ...prev, [modalName]: !prev[modalName] }));
   }, []);
 
+  /**
+   * Normalize transaction data for display
+   */
+  const normalizeTransaction = useCallback((t) => {
+    if (!t) return t;
+
+    return {
+      ...t,
+
+      // Normalize items array
+      items: t.items?.map(i => ({
+        name: i.name || i.productName || i.title || '',
+        price: i.price || i.unitPrice || 0,
+        quantity: i.quantity || i.qty || 1,
+        total: (i.price || i.unitPrice || 0) * (i.quantity || i.qty || 1),
+      })) || [],
+
+      // Normalize totals
+      subtotal: t.subtotal 
+        ?? t.amountBeforeTax 
+        ?? (Array.isArray(t.items)
+              ? t.items.reduce((sum, i) =>
+                  sum + (i.unitPrice || i.price || 0) * (i.qty || i.quantity || 1),
+                0)
+              : 0),
+
+      // Normalize tax
+      tax: {
+        rate: t.tax?.rate ?? t.taxRate ?? taxRate,
+        amount: t.tax?.amount ?? t.taxAmount ?? 0,
+      },
+
+      // Normalize discount
+      discount: t.discount ?? {
+        amount: t.discountAmount ?? 0,
+        type: t.discountType || "flat",
+      },
+
+      // Normalize payment
+      payment: t.payment || {
+        method: t.paymentMethod || 'CASH',
+        amount: t.total,
+      },
+    };
+  }, [taxRate]);
+
   return {
     // Data
     products,
@@ -347,6 +437,7 @@ export const usePOS = (config = {}) => {
     // Loading states
     isLoadingProducts,
     isLoadingTransactions,
+    isFetchingTransactionDetails, // ✅ NEW: Separate loading state
     isLoading: isLoadingProducts || isLoadingTransactions,
 
     // Cart (from context)
@@ -367,12 +458,13 @@ export const usePOS = (config = {}) => {
     validateCheckout,
     handleCheckout,
     completeTransaction,
-    viewTransaction,
+    viewTransaction, // ✅ UPDATED: Now fetches full details
     newTransaction,
 
     // Data refresh
     fetchProducts,
-    fetchTransactions,
+    fetchTransactions, // ✅ Lightweight list
+    fetchTransactionDetails, // ✅ NEW: Full detail fetch
     refreshAll: useCallback(() => {
       fetchProducts();
       fetchTransactions();
@@ -386,5 +478,6 @@ export const usePOS = (config = {}) => {
 
     // Config
     taxRate,
+    normalizeTransaction,
   };
 };

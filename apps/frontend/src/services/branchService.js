@@ -16,7 +16,9 @@ export const getAllBranches = async (params = {}) => {
     return data;
   } catch (error) {
     const message = error.response?.data?.message || 'Failed to fetch branches';
-    throw new Error(message);
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -36,7 +38,9 @@ export const getBranchById = async (id, params = {}) => {
     return data;
   } catch (error) {
     const message = error.response?.data?.message || 'Failed to fetch branch';
-    throw new Error(message);
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -51,7 +55,9 @@ export const createBranch = async (branchData) => {
     return data;
   } catch (error) {
     const message = error.response?.data?.message || 'Failed to create branch';
-    throw new Error(message);
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -67,7 +73,9 @@ export const updateBranch = async (id, updateData) => {
     return data;
   } catch (error) {
     const message = error.response?.data?.message || 'Failed to update branch';
-    throw new Error(message);
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -82,7 +90,9 @@ export const deleteBranch = async (id) => {
     return data;
   } catch (error) {
     const message = error.response?.data?.message || 'Failed to delete branch';
-    throw new Error(message);
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -107,7 +117,9 @@ export const getBranchProducts = async (id, params = {}) => {
     return data;
   } catch (error) {
     const message = error.response?.data?.message || 'Failed to fetch branch products';
-    throw new Error(message);
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -122,7 +134,9 @@ export const getBranchCategories = async (id) => {
     return data;
   } catch (error) {
     const message = error.response?.data?.message || 'Failed to fetch branch categories';
-    throw new Error(message);
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -137,7 +151,9 @@ export const getBranchUsers = async (id) => {
     return data;
   } catch (error) {
     const message = error.response?.data?.message || 'Failed to fetch branch users';
-    throw new Error(message);
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -161,7 +177,9 @@ export const getBranchTransactions = async (id, params = {}) => {
     return data;
   } catch (error) {
     const message = error.response?.data?.message || 'Failed to fetch branch transactions';
-    throw new Error(message);
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -186,7 +204,9 @@ export const getBranchStockMovements = async (id, params = {}) => {
     return data;
   } catch (error) {
     const message = error.response?.data?.message || 'Failed to fetch branch stock movements';
-    throw new Error(message);
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -206,7 +226,9 @@ export const getBranchAnalytics = async (id, params = {}) => {
     return data;
   } catch (error) {
     const message = error.response?.data?.message || 'Failed to fetch branch analytics';
-    throw new Error(message);
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -221,7 +243,9 @@ export const getInventoryStatus = async (id) => {
     return data;
   } catch (error) {
     const message = error.response?.data?.message || 'Failed to fetch inventory status';
-    throw new Error(message);
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 

@@ -8,7 +8,7 @@ import Select from '../common/Select';
 import TextArea from '../common/TextArea';
 import Alert from '../common/Alert';
 import { Save, X, Plus, Minus, TrendingUp, TrendingDown } from 'lucide-react';
-import { STOCK_MOVEMENT_REASONS, STOCK_MOVEMENT_LABELS } from '../../utils/constants';
+// import { STOCK_MOVEMENT_REASONS, STOCK_MOVEMENT_LABELS } from '../../utils/constants';
 
 /**
  * StockAdjustmentForm Component
@@ -35,7 +35,7 @@ const StockAdjustmentForm = ({
   } = useForm({
     defaultValues: {
       quantity: '',
-      reason: STOCK_MOVEMENT_REASONS.ADJUSTMENT,
+      reason: '',
       notes: '',
     },
   });
@@ -190,8 +190,8 @@ const StockAdjustmentForm = ({
           </div>
         )}
 
-        {/* Reason */}
-        <Select
+        Reason
+        {/* <Select
           label="Reason"
           required
           {...register('reason', {
@@ -204,7 +204,7 @@ const StockAdjustmentForm = ({
               {STOCK_MOVEMENT_LABELS[value]}
             </option>
           ))}
-        </Select>
+        </Select> */}
 
         {/* Notes */}
         <TextArea

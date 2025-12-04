@@ -155,10 +155,15 @@ export const createSupplier = asyncHandler(async (req, res) => {
     throw new BadRequestError('Supplier name is required');
   }
   
-  // Validate phone format if provided
-  if (phone && !/^[\+]?[1-9][\d]{0,15}$/.test(phone.replace(/\s/g, ''))) {
-    throw new BadRequestError('Invalid phone format');
-  }
+// Validate phone format (simple global version)
+if (
+  phone &&
+  !/^\+?[\d\s\-().]{7,20}$/.test(phone) ||                    // allowed chars
+  phone.replace(/[^\d]/g, '').length < 7 ||                   // min digits
+  phone.replace(/[^\d]/g, '').length > 16                     // max digits
+) {
+  throw new BadRequestError('Hi this is a bad Invalid phone format2');
+}
   
   // Check for duplicate supplier name
   const existingSupplier = await prisma.supplier.findFirst({
@@ -210,10 +215,15 @@ export const updateSupplier = asyncHandler(async (req, res) => {
     throw new NotFoundError('Supplier not found');
   }
   
-  // Validate phone format if provided
-  if (phone && !/^[\+]?[1-9][\d]{0,15}$/.test(phone.replace(/\s/g, ''))) {
-    throw new BadRequestError('Invalid phone format');
-  }
+ // Validate phone format (simple global version)
+if (
+  phone &&
+  !/^\+?[\d\s\-().]{7,20}$/.test(phone) ||                    // allowed chars
+  phone.replace(/[^\d]/g, '').length < 7 ||                   // min digits
+  phone.replace(/[^\d]/g, '').length > 16                     // max digits
+) {
+  throw new BadRequestError('Hi this is a bad Invalid phone format2');
+}
   
   // Check for duplicate name if updating name
   if (name && name.trim() !== existingSupplier.name) {

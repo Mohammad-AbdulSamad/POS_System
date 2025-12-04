@@ -2,7 +2,7 @@
 import Card, { CardBody } from '../common/Card';
 import Badge from '../common/Badge';
 import Button from '../common/Button';
-import { formatCurrency } from '../../utils/formatters';
+import { CURRENCY_SYMBOL } from '../../config/constants';
 import { Package, Edit, Trash2, Eye, TrendingUp, AlertTriangle } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -135,10 +135,10 @@ const ProductCard = ({
                 'font-bold text-gray-900',
                 compact ? 'text-base' : 'text-lg'
               )}>
-                {formatCurrency(priceGross)}
+                { `${CURRENCY_SYMBOL}${priceGross}` }
               </div>
               <div className="text-xs text-gray-500">
-                Cost: {formatCurrency(cost)}
+                Cost: { `${CURRENCY_SYMBOL}${cost}` }
               </div>
             </div>
 

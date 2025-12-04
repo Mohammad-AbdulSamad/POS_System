@@ -5,6 +5,7 @@ import Button from '../common/Button';
 import Input from '../common/Input';
 import Select from '../common/Select';
 import { Save, X } from 'lucide-react';
+import { use, useEffect } from 'react';
 
 /**
  * CategoryForm Component
@@ -21,7 +22,7 @@ const CategoryForm = ({
   loading = false,
 }) => {
   const isEdit = !!initialData;
-
+  console.log(initialData);
   const {
     register,
     handleSubmit,
@@ -43,6 +44,24 @@ const CategoryForm = ({
     reset();
     onClose();
   };
+
+ useEffect(() => {
+    if (isOpen) {
+      if (initialData) {
+        // Edit mode: populate with initialData
+        reset({
+          name: initialData.name || '',
+          branchId: initialData.branchId || '',
+        });
+      } else {
+        // Add mode: clear all fields
+        reset({
+          name: '',
+          branchId: '',
+        });
+      }
+    }
+  }, [isOpen, initialData, reset]);
 
   return (
     <Modal
@@ -68,22 +87,16 @@ const CategoryForm = ({
           autoFocus
         />
 
-        {/* Branch */}
-        <Select
-          label="Branch"
-          required
-          {...register('branchId', {
-            required: 'Branch is required',
-          })}
-          error={errors.branchId?.message}
-        >
-          <option value="">Select branch</option>
-          {branches.map((branch) => (
-            <option key={branch.id} value={branch.id}>
-              {branch.name}
-            </option>
-          ))}
-        </Select>
+          {/* Branch */}
+          <Select
+            label="Branch"
+            {...register('branchId')}
+            error={errors.branchId?.message}
+            options={[
+              { value: '', label: 'Select branch' }, 
+              ...branches.map(b => ({ value: String(b.id), label: b.name }))
+            ]}
+          />
 
         {/* Form Actions */}
         <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">

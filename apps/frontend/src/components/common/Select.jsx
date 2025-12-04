@@ -1,6 +1,7 @@
 // src/components/common/Select.jsx
-import { forwardRef } from 'react';
+import { forwardRef, useState, useRef, useEffect } from 'react';
 import clsx from 'clsx';
+import { X, ChevronDown } from 'lucide-react';
 
 /**
  * Select Component
@@ -47,161 +48,273 @@ const Select = forwardRef(
     },
     ref
   ) => {
-    // Generate unique ID if not provided
+    console.log('🟢 Select render:', { value, multiple, options: options.length });
+    const [isOpen, setIsOpen] = useState(false);
+    const containerRef = useRef(null);
     const selectId = id || `select-${name || Math.random().toString(36).substr(2, 9)}`;
 
-    // Size styles
+    // Close dropdown when clicking outside
+    useEffect(() => {
+      const handleClickOutside = (e) => {
+        if (containerRef.current && !containerRef.current.contains(e.target)) {
+          setIsOpen(false);
+        }
+      };
+
+      if (isOpen) {
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+      }
+    }, [isOpen]);
+
     const sizeStyles = {
       sm: 'px-3 py-1.5 text-sm',
       md: 'px-4 py-2.5 text-sm',
       lg: 'px-5 py-3 text-base',
     };
 
-    // Base select styles
-    const baseSelectStyles = clsx(
-      'block border rounded-lg transition-all duration-200',
-      'focus:outline-none focus:ring-2 focus:ring-offset-0',
-      'disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed',
-      'appearance-none bg-white',
-      'cursor-pointer',
-      {
-        'w-full': fullWidth,
-        'pl-10': LeftIcon,
-        'pr-10': !multiple, // Add padding for dropdown arrow
-      },
-      sizeStyles[size]
-    );
+    // For multiple select: convert value to array
+    const selectedValues = multiple
+      ? Array.isArray(value)
+        ? value
+        : value ? [value] : []
+      : [];
 
-    // Select state styles
-    const selectStateStyles = error
-      ? 'input-error focus:ring-danger-500'
-      : 'input-field focus:ring-primary-500';
+    // Get selected labels
+    const getSelectedLabels = () => {
+      return selectedValues
+        .map((v) => {
+          const opt = options.find((o) => (typeof o === 'object' ? o.value : o) === v);
+          return typeof opt === 'object' ? opt.label : opt;
+        })
+        .filter(Boolean);
+    };
+
+// Handle option click
+const handleOptionClick = (optionValue) => {
+  console.log('🔵 Click:', { optionValue, selectedValues, multiple });
+  
+  if (!multiple) {
+    onChange?.({ target: { value: optionValue, name } });
+    setIsOpen(false);
+  } else {
+    const isCurrentlySelected = selectedValues.some(v => String(v) === String(optionValue));
+    console.log('🔵 isCurrentlySelected:', isCurrentlySelected);
+    
+    const newValues = isCurrentlySelected
+      ? selectedValues.filter((v) => String(v) !== String(optionValue))
+      : [...selectedValues, optionValue];
+    
+    console.log('🔵 newValues:', newValues);
+    onChange?.({ target: { value: newValues, name } });
+  }
+};
+    // Handle remove tag (multiple only)
+    const handleRemoveTag = (e, optionValue) => {
+      e.stopPropagation();
+      // ✅ Remove by value, not index
+      const newValues = selectedValues.filter((v) => String(v) === String(optionValue) ? false : true);
+      onChange?.({ target: { value: newValues, name } });
+    };
+
+    // ✅ Fix selectedLabels mapping to match correct index
+    const selectedLabels = getSelectedLabels();
+    const selectedLabelMap = selectedValues.reduce((acc, val, idx) => {
+      acc[val] = selectedLabels[idx];
+      return acc;
+    }, {});
+
+    // ✅ Single select: use native select
+    if (!multiple) {
+      const baseSelectStyles = clsx(
+        'block border rounded-lg transition-all duration-200',
+        'focus:outline-none focus:ring-2 focus:ring-offset-0',
+        'disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed',
+        'appearance-none bg-white',
+        'cursor-pointer',
+        {
+          'w-full': fullWidth,
+          'pl-10': LeftIcon,
+          'pr-10': true,
+        },
+        sizeStyles[size]
+      );
+
+      const selectStateStyles = error
+        ? 'input-error focus:ring-danger-500'
+        : 'input-field focus:ring-primary-500';
+
+      return (
+        <div className={clsx('relative', { 'w-full': fullWidth }, className)}>
+          {label && (
+            <label htmlFor={selectId} className={clsx('block text-sm font-medium text-gray-700 mb-1.5', labelClassName)}>
+              {label}
+              {required && <span className="text-danger-500 ml-1">*</span>}
+            </label>
+          )}
+
+          <div className="relative">
+            {LeftIcon && (
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none z-10">
+                <LeftIcon className="h-5 w-5" />
+              </div>
+            )}
+
+            <select
+              ref={ref}
+              id={selectId}
+              name={name}
+              value={value}
+              onChange={onChange}
+              onBlur={onBlur}
+              onFocus={onFocus}
+              disabled={disabled}
+              required={required}
+              aria-invalid={error ? 'true' : 'false'}
+              className={clsx(baseSelectStyles, selectStateStyles, selectClassName)}
+              {...props}
+            >
+              {placeholder && (
+                <option value="" disabled>
+                  {placeholder}
+                </option>
+              )}
+              {options.map((option, index) => {
+                const optionValue = typeof option === 'object' ? option.value : option;
+                const optionLabel = typeof option === 'object' ? option.label : option;
+                const optionDisabled = typeof option === 'object' ? option.disabled : false;
+
+                return (
+                  <option key={`${optionValue}-${index}`} value={optionValue} disabled={optionDisabled}>
+                    {optionLabel}
+                  </option>
+                );
+              })}
+            </select>
+
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+              <ChevronDown className="h-5 w-5" />
+            </div>
+          </div>
+
+          {error && (
+            <p id={`${selectId}-error`} className="mt-1.5 text-sm text-danger-600 flex items-start gap-1">
+              <span>{error}</span>
+            </p>
+          )}
+          {helperText && !error && <p className="mt-1.5 text-sm text-gray-500">{helperText}</p>}
+        </div>
+      );
+    }
+
+    // ✅ Multiple select: custom dropdown
+    // const selectedLabels = getSelectedLabels();
+    // const selectedLabelMap = selectedValues.reduce((acc, val, idx) => {
+    //   acc[val] = selectedLabels[idx];
+    //   return acc;
+    // }, {});
 
     return (
-      <div className={clsx('relative', { 'w-full': fullWidth }, className)}>
-        {/* Label */}
+      <div ref={containerRef} className={clsx('relative', { 'w-full': fullWidth }, className)}>
         {label && (
-          <label
-            htmlFor={selectId}
-            className={clsx(
-              'block text-sm font-medium text-gray-700 mb-1.5',
-              { 'text-gray-400': disabled },
-              labelClassName
-            )}
-          >
+          <label className={clsx('block text-sm font-medium text-gray-700 mb-1.5', labelClassName)}>
             {label}
             {required && <span className="text-danger-500 ml-1">*</span>}
           </label>
         )}
 
-        {/* Select Container */}
-        <div className="relative">
-          {/* Left Icon */}
-          {LeftIcon && (
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none z-10">
-              <LeftIcon className="h-5 w-5" />
-            </div>
+        {/* Multi-select trigger button */}
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          disabled={disabled}
+          className={clsx(
+            'w-full text-left border rounded-lg transition-all duration-200',
+            'focus:outline-none focus:ring-2 focus:ring-offset-0',
+            'disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed',
+            'flex items-center justify-between gap-2',
+            sizeStyles[size],
+            error ? 'input-error focus:ring-danger-500' : 'input-field focus:ring-primary-500',
+            selectClassName
           )}
-
-          {/* Select Field */}
-          <select
-            ref={ref}
-            id={selectId}
-            name={name}
-            value={value}
-            onChange={onChange}
-            onBlur={onBlur}
-            onFocus={onFocus}
-            disabled={disabled}
-            required={required}
-            multiple={multiple}
-            aria-invalid={error ? 'true' : 'false'}
-            aria-describedby={
-              error ? `${selectId}-error` : helperText ? `${selectId}-helper` : undefined
-            }
-            className={clsx(
-              baseSelectStyles,
-              selectStateStyles,
-              selectClassName
+        >
+          <div className="flex items-center gap-2 flex-wrap flex-1">
+            {LeftIcon && <LeftIcon className="h-5 w-5 text-gray-400 flex-shrink-0" />}
+            {selectedLabels.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {selectedValues.map((val, i) => (
+                  <span
+                    key={`${val}-${i}`}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary-100 text-primary-700 rounded text-xs font-medium"
+                  >
+                    {selectedLabelMap[val] || val}
+                    <button
+                      type="button"
+                      onClick={(e) => handleRemoveTag(e, val)}
+                      className="hover:text-primary-900"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <span className="text-gray-500">{placeholder}</span>
             )}
-            {...props}
-          >
-            {/* Placeholder option */}
-            {!multiple && placeholder && (
-              <option value="" disabled>
-                {placeholder}
-              </option>
-            )}
-
-            {/* Options */}
-            {options.map((option, index) => {
-              // Handle both object and primitive options
-              const optionValue = typeof option === 'object' ? option.value : option;
-              const optionLabel = typeof option === 'object' ? option.label : option;
-              const optionDisabled = typeof option === 'object' ? option.disabled : false;
-
-              return (
-                <option
-                  key={`${optionValue}-${index}`}
-                  value={optionValue}
-                  disabled={optionDisabled}
-                >
-                  {optionLabel}
-                </option>
-              );
+          </div>
+          <ChevronDown
+            className={clsx('h-5 w-5 text-gray-400 flex-shrink-0 transition-transform', {
+              'rotate-180': isOpen,
             })}
-          </select>
+          />
+        </button>
 
-          {/* Dropdown Arrow Icon (only for single select) */}
-          {!multiple && (
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-              <svg
-                className="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
+        {/* Dropdown menu */}
+        {isOpen && (
+          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg">
+            <div className="max-h-64 overflow-y-auto">
+              {options.map((option, index) => {
+                const optionValue = typeof option === 'object' ? option.value : option;
+                const optionLabel = typeof option === 'object' ? option.label : option;
+                const optionDisabled = typeof option === 'object' ? option.disabled : false;
+                // ✅ FIX: Add type-safe comparison in the isSelected check
+                const isSelected = selectedValues.some(v => String(v) === String(optionValue));
+
+                return (
+                  <button
+                    key={`${optionValue}-${index}`}
+                    type="button"
+                    onClick={() => handleOptionClick(optionValue)}
+                    disabled={optionDisabled}
+                    className={clsx(
+                      'w-full text-left px-4 py-2.5 hover:bg-primary-50 transition-colors',
+                      'flex items-center gap-3',
+                      'disabled:text-gray-400 disabled:cursor-not-allowed disabled:hover:bg-white',
+                      {
+                        'bg-primary-50 text-primary-700 font-medium': isSelected,
+                      }
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      readOnly
+                      className="h-4 w-4 rounded border-gray-300 cursor-pointer"
+                    />
+                    <span>{optionLabel}</span>
+                  </button>
+                );
+              })}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* Error Message */}
         {error && (
-          <p
-            id={`${selectId}-error`}
-            className="mt-1.5 text-sm text-danger-600 flex items-start gap-1"
-          >
-            <svg
-              className="h-4 w-4 mt-0.5 flex-shrink-0"
-              fill="currentColor"
-              viewBox="0 0 20 20"
-            >
-              <path
-                fillRule="evenodd"
-                d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                clipRule="evenodd"
-              />
-            </svg>
+          <p id={`${selectId}-error`} className="mt-1.5 text-sm text-danger-600 flex items-start gap-1">
             <span>{error}</span>
           </p>
         )}
-
-        {/* Helper Text */}
-        {helperText && !error && (
-          <p
-            id={`${selectId}-helper`}
-            className="mt-1.5 text-sm text-gray-500"
-          >
-            {helperText}
-          </p>
-        )}
+        {helperText && !error && <p className="mt-1.5 text-sm text-gray-500">{helperText}</p>}
       </div>
     );
   }

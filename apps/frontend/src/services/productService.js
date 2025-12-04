@@ -1,5 +1,5 @@
 // src/services/dashboardService.js
-import { get, post, put, del } from '../utils/apiClient';
+import { get, post, put, del, patch } from '../utils/apiClient';
 
 /**
  * Get all products with pagination and filters
@@ -22,8 +22,10 @@ export const getAllProducts = async (params = {}) => {
     const data = await get(url);
     return data;
   } catch (error) {
-    const message = error.response?.data?.message || 'Failed to fetch products';
-    throw new Error(message);
+    const message = error.response?.data?.message || error.message || 'Failed to fetch products';
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;;
   }
 };
 
@@ -37,8 +39,10 @@ export const getProductById = async (id) => {
     const data = await get(`/products/${id}`);
     return data;
   } catch (error) {
-    const message = error.response?.data?.message || 'Failed to fetch product';
-    throw new Error(message);
+    const message = error.response?.data?.message || error.message || 'Failed to fetch product';
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -52,8 +56,10 @@ export const createProduct = async (productData) => {
     const data = await post('/products', productData);
     return data;
   } catch (error) {
-    const message = error.response?.data?.message || 'Failed to create product';
-    throw new Error(message);
+    const message = error.response?.data?.message || error.message || 'Failed to create product';
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -63,13 +69,30 @@ export const createProduct = async (productData) => {
  * @param {Object} updateData Update data
  * @returns {Promise<Object>} Updated product
  */
+// Frontend: productService.js
 export const updateProduct = async (id, updateData) => {
   try {
-    const data = await put(`/products/${id}`, updateData);
+    const allowedFields = [
+      'branchId', 'sku', 'name', 'description', 'priceGross', 'cost', 'unit', 'stock',
+      'categoryId', 'supplierId', 'taxRateId', 'active', 'metadata', 'minStock',
+      'reorderPoint', 'barcode', 'imageUrl', 'size', 'weight', 'volume', 'packSize'
+    ];
+
+    const sanitized = Object.fromEntries(
+      Object.entries(updateData || {}).filter(([k]) => allowedFields.includes(k))
+    );
+
+    if (sanitized.priceGross !== undefined) sanitized.priceGross = Number(sanitized.priceGross);
+    if (sanitized.cost !== undefined) sanitized.cost = Number(sanitized.cost);
+    if (sanitized.stock !== undefined) sanitized.stock = Number(sanitized.stock);
+
+    const data = await put(`/products/${id}`, sanitized);
     return data;
   } catch (error) {
-    const message = error.response?.data?.message || 'Failed to update product';
-    throw new Error(message);
+    const message = error.response?.data?.message || error.message || 'Failed to update product';
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -83,8 +106,10 @@ export const deleteProduct = async (id) => {
     const data = await del(`/products/${id}`);
     return data;
   } catch (error) {
-    const message = error.response?.data?.message || 'Failed to delete product';
-    throw new Error(message);
+    const message = error.response?.data?.message || error.message || 'Failed to delete product';
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -103,8 +128,10 @@ export const getProductsByBranch = async (branchId, params = {}) => {
     const data = await get(url);
     return data;
   } catch (error) {
-    const message = error.response?.data?.message || 'Failed to fetch branch products';
-    throw new Error(message);
+    const message = error.response?.data?.message || error.message || 'Failed to fetch branch products';
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -118,8 +145,10 @@ export const getProductsByCategory = async (categoryId) => {
     const data = await get(`/products/category/${categoryId}`);
     return data;
   } catch (error) {
-    const message = error.response?.data?.message || 'Failed to fetch category products';
-    throw new Error(message);
+    const message = error.response?.data?.message || error.message || 'Failed to fetch category products';
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -135,8 +164,10 @@ export const getProductByBarcode = async (barcode, branchId = null) => {
     const data = await get(url);
     return data;
   } catch (error) {
-    const message = error.response?.data?.message || 'Failed to fetch product by barcode';
-    throw new Error(message);
+    const message = error.response?.data?.message || error.message || 'Failed to fetch product by barcode';
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -155,8 +186,10 @@ export const searchProductsByName = async (params) => {
     const data = await get(`/products/search?${queryParams.toString()}`);
     return data;
   } catch (error) {
-    const message = error.response?.data?.message || 'Failed to search products';
-    throw new Error(message);
+    const message = error.response?.data?.message || error.message || 'Failed to search products';
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -168,11 +201,14 @@ export const searchProductsByName = async (params) => {
  */
 export const getLowStockProducts = async (branchId, threshold = 10) => {
   try {
+    console.log('Fetching low stock products for branch:', branchId, 'with threshold:', threshold);
     const data = await get(`/products/branch/${branchId}/low-stock?threshold=${threshold}`);
     return data;
   } catch (error) {
-    const message = error.response?.data?.message || 'Failed to fetch low stock products';
-    throw new Error(message);
+    const message = error.response?.data?.message || error.message || 'Failed to fetch low stock products';
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -185,8 +221,10 @@ export const getOutOfStockProducts = async (branchId) => {
     const data = await get(`/products/branch/${branchId}/out-of-stock`);
     return data;
   } catch (error) {
-    const message = error.response?.data?.message || 'Failed to fetch out of stock products';
-    throw new Error(message);
+    const message = error.response?.data?.message || error.message || 'Failed to fetch out of stock products';
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -198,11 +236,13 @@ export const getOutOfStockProducts = async (branchId) => {
  */
 export const updateStock = async (id, data) => {
   try {
-    const response = await put(`/products/${id}/stock`, data);
+    const response = await patch(`/products/${id}/stock`, data);
     return response;
   } catch (error) {
-    const message = error.response?.data?.message || 'Failed to update stock';
-    throw new Error(message);
+    const message = error.response?.data?.message || error.message || 'Failed to update stock';
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -217,8 +257,10 @@ export const getStockHistory = async (id, limit = 50) => {
     const data = await get(`/products/${id}/stock-history?limit=${limit}`);
     return data;
   } catch (error) {
-    const message = error.response?.data?.message || 'Failed to fetch stock history';
-    throw new Error(message);
+    const message = error.response?.data?.message || error.message || 'Failed to fetch stock history';
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -233,8 +275,10 @@ export const updatePrice = async (id, priceData) => {
     const data = await put(`/products/${id}/price`, priceData);
     return data;
   } catch (error) {
-    const message = error.response?.data?.message || 'Failed to update price';
-    throw new Error(message);
+    const message = error.response?.data?.message || error.message || 'Failed to update price';
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -248,8 +292,10 @@ export const toggleProductActive = async (id) => {
     const data = await put(`/products/${id}/toggle-active`);
     return data;
   } catch (error) {
-    const message = error.response?.data?.message || 'Failed to toggle product status';
-    throw new Error(message);
+    const message = error.response?.data?.message || error.message || 'Failed to toggle product status';
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -263,8 +309,10 @@ export const getInactiveProducts = async (branchId) => {
     const data = await get(`/products/branch/${branchId}/inactive`);
     return data;
   } catch (error) {
-    const message = error.response?.data?.message || 'Failed to fetch inactive products';
-    throw new Error(message);
+    const message = error.response?.data?.message || error.message || 'Failed to fetch inactive products';
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -278,8 +326,10 @@ export const bulkUpdateProducts = async (updateData) => {
     const data = await post('/products/bulk-update', updateData);
     return data;
   } catch (error) {
-    const message = error.response?.data?.message || 'Failed to bulk update products';
-    throw new Error(message);
+    const message = error.response?.data?.message || error.message || 'Failed to bulk update products';
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 

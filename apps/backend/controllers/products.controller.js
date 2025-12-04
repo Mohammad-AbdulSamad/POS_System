@@ -197,9 +197,21 @@ export const createProduct = asyncHandler(async (req, res) => {
   }
 });
 
-// 🟢 Update product
+// Backend: products.controller.js
 export const updateProduct = asyncHandler(async (req, res) => {
-  const updateData = { ...req.body };
+  const allowedFields = [
+    'branchId', 'sku', 'name', 'description', 'priceGross', 'cost', 'unit', 'stock',
+    'categoryId', 'supplierId', 'taxRateId', 'active', 'metadata', 'minStock',
+    'reorderPoint', 'barcode', 'imageUrl', 'size', 'weight', 'volume', 'packSize'
+  ];
+
+  // Filter to allowed fields only
+  const updateData = {};
+  for (const field of allowedFields) {
+    if (req.body[field] !== undefined) {
+      updateData[field] = req.body[field];
+    }
+  }
 
   if (updateData.priceGross !== undefined) updateData.priceGross = parseFloat(updateData.priceGross);
   if (updateData.cost !== undefined) updateData.cost = parseFloat(updateData.cost);

@@ -116,7 +116,7 @@
   /* Button Styles */
   .btn-primary {
     background-color: var(--color-primary-500);
-    /* color: white; */
+    color: white;
     font-weight: 500;
     padding: 0.5rem 1rem;
     border-radius: var(--radius-button);
@@ -130,7 +130,7 @@
 
   .btn-secondary {
     background-color: var(--color-secondary-500);
-    /* color: white; */
+    color: white;
     font-weight: 500;
     padding: 0.5rem 1rem;
     border-radius: var(--radius-button);
@@ -143,7 +143,7 @@
 
   .btn-success {
     background-color: var(--color-success-500);
-    /* color: white; */
+    color: white;
     font-weight: 500;
     padding: 0.5rem 1rem;
     border-radius: var(--radius-button);
@@ -167,6 +167,20 @@
     background-color: var(--color-danger-600);
   }
 
+  .btn-warning {
+    background-color: var(--color-warning-500);
+    color: white;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-button);
+    transition: background-color 200ms;
+    box-shadow: var(--shadow-button);
+  }
+
+  .btn-warning:hover {
+    background-color: var(--color-warning-600);
+  }
+
   .btn-outline {
     border: 2px solid var(--color-primary-500);
     color: var(--color-primary-500);
@@ -179,8 +193,33 @@
 
   .btn-outline:hover {
     background-color: var(--color-primary-100);
-    
-    /* color: white; */
+  }
+
+  .btn-ghost {
+    background-color: transparent;
+    color: var(--color-primary-500);
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-button);
+    transition: all 200ms;
+  }
+
+  .btn-ghost:hover {
+    background-color: rgba(59, 130, 246, 0.1);
+  }
+
+  .btn-link {
+    background-color: transparent;
+    color: var(--color-primary-500);
+    font-weight: 500;
+    padding: 0;
+    border-radius: 0;
+    transition: color 200ms;
+    text-decoration: underline;
+  }
+  
+  .btn-link:hover {
+    color: var(--color-primary-600);
   }
 
   .badge-primary {
@@ -371,7 +410,7 @@
   }
 }
 
-:root {
+/* :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
@@ -418,4 +457,4 @@ h1 {
     color: #747bff;
   }
 
-}
+} */

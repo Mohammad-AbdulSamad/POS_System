@@ -3,7 +3,8 @@ import { get, post, put, del } from '../utils/apiClient';
 import { authStorage } from '../utils/storage';
 
 /**
- * Get all transactions with pagination and filters
+ * ✅ UPDATED: Get all transactions with LIGHTWEIGHT fetching by default
+ * Pass includeRelations=true only when you need full details
  */
 export const getAllTransactions = async (params = {}) => {
   try {
@@ -15,32 +16,59 @@ export const getAllTransactions = async (params = {}) => {
     if (params.status) queryParams.append('status', params.status);
     if (params.startDate) queryParams.append('startDate', params.startDate);
     if (params.endDate) queryParams.append('endDate', params.endDate);
-    if (params.include_relations !== undefined) {
-      queryParams.append('include_relations', params.include_relations);
-    }
+    
+    // ✅ FIX: Default to lightweight fetching for lists
+    const includeRelations = params.includeRelations ?? params.include_relations ?? false;
+    queryParams.append('include_relations', includeRelations ? 'true' : 'false');
 
     const url = `/transactions${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
     const data = await get(url);
-    console.log('✅ Fetched transactions:', data);
+    console.log('✅ Fetched transactions (lightweight):', data);
     return data;
   } catch (error) {
-    const message = error.response?.data?.message || 'Failed to fetch transactions';
-    throw new Error(message);
+    const message = error.response?.data?.message || error.message || 'Failed to fetch transactions';
+    const backendError = new Error(message);
+    backendError.response = error.response;
+    throw backendError;
   }
 };
 
 /**
- * Get transaction by ID
+ * ✅ UPDATED: Get transaction by ID with FULL DETAILS by default
+ * This is used for viewing receipts and transaction details
  */
 export const getTransactionById = async (id, includeRelations = true) => {
   try {
-    const params = { include_relations: includeRelations ? 'true' : 'false' };
-    const response = await get(`/transactions/${id}`, { params });
+    const queryParams = new URLSearchParams();
+    queryParams.append('include_relations', includeRelations ? 'true' : 'false');
+    
+    const url = `/transactions/${id}?${queryParams.toString()}`;
+    const response = await get(url);
+    console.log('✅ Fetched transaction details:', response);
     return response;
   } catch (error) {
-    console.error(`Error fetching transaction ${id}:`, error);
-    throw error;
+    const message = error.response?.data?.message || error.message || `Failed to fetch transaction ${id}`;
+    const backendError = new Error(message);
+    backendError.response = error.response;
+    throw backendError;
   }
+};
+
+/**
+ * ✅ NEW: Lightweight fetch for lists (summary data only)
+ */
+export const getTransactionsSummary = async (params = {}) => {
+  return getAllTransactions({
+    ...params,
+    includeRelations: false, // Force lightweight
+  });
+};
+
+/**
+ * ✅ NEW: Get full transaction details (for receipt view)
+ */
+export const getTransactionDetails = async (id) => {
+  return getTransactionById(id, true); // Force full details
 };
 
 /**
@@ -56,14 +84,15 @@ export const createTransaction = async (transactionData) => {
     console.log('✅ Transaction created:', response);
     return response;
   } catch (error) {
-    console.error('❌ Error creating transaction:', error);
-    throw error;
+    const message = error.response?.data?.message || error.message || 'Failed to create transaction';
+    const backendError = new Error(message);
+    backendError.response = error.response;
+    throw backendError;
   }
 };
 
 /**
  * Transform frontend transaction data to backend format
- * ✅ FIXED: Properly matches backend schema expectations
  */
 const transformTransactionForBackend = (frontendData) => {
   const {
@@ -80,7 +109,6 @@ const transformTransactionForBackend = (frontendData) => {
     ...rest
   } = frontendData;
 
-  // Get authenticated user data
   const currentUser = authStorage.getUserData();
   
   if (!currentUser) {
@@ -90,14 +118,6 @@ const transformTransactionForBackend = (frontendData) => {
   const branchId = currentUser.branchId || currentUser.branch?.id;
   const cashierId = currentUser.id;
 
-  console.log('🔐 Using authenticated user:', {
-    userId: cashierId,
-    branchId: branchId,
-    userName: currentUser.name,
-    userRole: currentUser.role
-  });
-
-  // Validate required data
   if (!branchId) {
     throw new Error('Branch information not found. Please contact support.');
   }
@@ -106,43 +126,17 @@ const transformTransactionForBackend = (frontendData) => {
     throw new Error('User ID not found. Please login again.');
   }
 
-  // ✅ FIX: Calculate discount distribution across items
   const totalItemsValue = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const discountAmount = discount?.amount || 0;
-  
-  console.log('💰 Discount calculation:', {
-    totalItemsValue,
-    discountAmount,
-    discountType: discount?.type,
-    discountValue: discount?.value
-  });
 
-  // ✅ FIX: Transform cart items to match backend expectations
   const lines = items.map(item => {
     const itemSubtotal = item.price * item.quantity;
-    
-    // Distribute discount proportionally across items
     const itemDiscount = discountAmount > 0 
       ? (itemSubtotal / totalItemsValue) * discountAmount 
       : 0;
-    
     const itemAfterDiscount = itemSubtotal - itemDiscount;
-    
-    // ✅ FIX: Tax is calculated on discounted amount
     const itemTaxAmount = itemAfterDiscount * (tax.rate / 100);
-    
-    // ✅ FIX: lineTotal = subtotal - discount (tax is added separately by backend)
     const itemLineTotal = itemAfterDiscount;
-
-    console.log(`📝 Line item: ${item.name}`, {
-      quantity: item.quantity,
-      unitPrice: item.price,
-      itemSubtotal,
-      itemDiscount: itemDiscount.toFixed(2),
-      itemAfterDiscount: itemAfterDiscount.toFixed(2),
-      itemTaxAmount: itemTaxAmount.toFixed(2),
-      lineTotal: itemLineTotal.toFixed(2)
-    });
 
     return {
       productId: item.id,
@@ -154,17 +148,14 @@ const transformTransactionForBackend = (frontendData) => {
     };
   });
 
-  // ✅ FIX: Transform payment data to match backend enum
   const payments = payment ? [{
-    method: payment.method.toUpperCase(), // CASH, CARD, MOBILE
+    method: payment.method.toUpperCase(),
     amount: parseFloat(payment.amount.toFixed(2))
   }] : [];
 
-  // Calculate loyalty points
   const loyaltyPointsEarned = customer ? Math.floor(total / 100) : 0;
   const loyaltyPointsUsed = discount?.type === 'loyalty' ? (discount.pointsUsed || 0) : 0;
 
-  // ✅ FIX: Build payload matching backend expectations
   const payload = {
     branchId,
     cashierId,
@@ -188,8 +179,6 @@ const transformTransactionForBackend = (frontendData) => {
     }
   };
 
-  console.log('📤 Final payload to backend:', JSON.stringify(payload, null, 2));
-
   return payload;
 };
 
@@ -201,8 +190,10 @@ export const updateTransaction = async (id, updates) => {
     const response = await put(`/transactions/${id}`, updates);
     return response;
   } catch (error) {
-    console.error(`Error updating transaction ${id}:`, error);
-    throw error;
+    const message = error.response?.data?.message || error.message || `Failed to update transaction ${id}`;
+    const backendError = new Error(message);
+    backendError.response = error.response;
+    throw backendError;
   }
 };
 
@@ -214,8 +205,10 @@ export const deleteTransaction = async (id) => {
     const response = await del(`/transactions/${id}`);
     return response;
   } catch (error) {
-    console.error(`Error deleting transaction ${id}:`, error);
-    throw error;
+    const message = error.response?.data?.message || error.message || `Failed to delete transaction ${id}`;
+    const backendError = new Error(message);
+    backendError.response = error.response;
+    throw backendError;
   }
 };
 
@@ -224,11 +217,20 @@ export const deleteTransaction = async (id) => {
  */
 export const getTransactionsByBranch = async (branchId, params = {}) => {
   try {
-    const response = await get(`/transactions/branch/${branchId}`, { params });
+    // ✅ FIX: Default to lightweight for lists
+    const includeRelations = params.includeRelations ?? false;
+    const queryParams = new URLSearchParams({
+      ...params,
+      include_relations: includeRelations ? 'true' : 'false'
+    });
+    
+    const response = await get(`/transactions/branch/${branchId}?${queryParams.toString()}`);
     return response;
   } catch (error) {
-    console.error(`Error fetching transactions for branch ${branchId}:`, error);
-    throw error;
+    const message = error.response?.data?.message || error.message || `Failed to fetch transactions for branch ${branchId}`;
+    const backendError = new Error(message);
+    backendError.response = error.response;
+    throw backendError;
   }
 };
 
@@ -237,55 +239,57 @@ export const getTransactionsByBranch = async (branchId, params = {}) => {
  */
 export const getTransactionsByCustomer = async (customerId, params = {}) => {
   try {
-    const response = await get(`/transactions/customer/${customerId}`, { params });
+    // ✅ FIX: Default to lightweight for lists
+    const includeRelations = params.includeRelations ?? false;
+    const queryParams = new URLSearchParams({
+      ...params,
+      include_relations: includeRelations ? 'true' : 'false'
+    });
+    
+    const response = await get(`/transactions/customer/${customerId}?${queryParams.toString()}`);
     return response;
   } catch (error) {
-    console.error(`Error fetching transactions for customer ${customerId}:`, error);
-    throw error;
+    const message = error.response?.data?.message || error.message || `Failed to fetch transactions for customer ${customerId}`;
+    const backendError = new Error(message);
+    backendError.response = error.response;
+    throw backendError;
   }
 };
 
 /**
- * Get transaction receipt by RECEIPT NUMBER (not transaction ID)
- * Use this when customer brings physical receipt
- * @param {string} receiptNumber - Receipt number (e.g., "STMA-20251106-0001")
- * @returns {Promise<Object>} - Formatted transaction data
+ * Get transaction receipt by RECEIPT NUMBER (not ID)
  */
 export const getTransactionByReceiptNumber = async (receiptNumber) => {
   try {
     console.log('🔍 Fetching transaction by receipt number:', receiptNumber);
-    
     const response = await get(`/transactions/receipt/${receiptNumber}`);
-    
     console.log('✅ Receipt found:', response);
-    
-    // Transform backend data to frontend format
-    return transformTransactionForFrontend(response);
+    return response;
   } catch (error) {
-    console.error(`❌ Error fetching receipt ${receiptNumber}:`, error);
-    
     if (error.response?.status === 404) {
       throw new Error(`Receipt not found: ${receiptNumber}`);
     }
-    
-    throw new Error(error.response?.data?.message || 'Failed to fetch receipt');
+    const message = error.response?.data?.message || 'Failed to fetch receipt';
+    const backendError = new Error(message);
+    backendError.response = error.response;
+    throw backendError;
   }
 };
 
 /**
- * Transform backend transaction to frontend format
- * ✅ FIXED: Properly reconstructs data from backend response
+ * ✅ UPDATED: Transform backend transaction to frontend format
+ * Handles both lightweight and full transaction objects
  */
 export const transformTransactionForFrontend = (backendTransaction) => {
   if (!backendTransaction) return null;
 
-  // ✅ FIX: Calculate total discount from transaction lines
+  // Calculate total discount from transaction lines (if available)
   const totalDiscountFromLines = backendTransaction.lines?.reduce(
     (sum, line) => sum + parseFloat(line.discount || 0), 
     0
   ) || 0;
 
-  // ✅ FIX: Get discount info from metadata
+  // Get discount info from metadata
   const discountInfo = backendTransaction.metadata?.discountApplied ? {
     type: backendTransaction.metadata.discountType,
     value: backendTransaction.metadata.discountValue || 0,
@@ -300,55 +304,23 @@ export const transformTransactionForFrontend = (backendTransaction) => {
     pointsUsed: 0
   } : null;
 
-  // ✅ FIX: Use _count if available, otherwise calculate from arrays
+  // Use _count if available, otherwise calculate from arrays
   const itemsCount = backendTransaction._count?.lines || backendTransaction.lines?.length || 0;
   const paymentsCount = backendTransaction._count?.payments || backendTransaction.payments?.length || 0;
   const returnsCount = backendTransaction._count?.returns || backendTransaction.returns?.length || 0;
 
-  return {
+  // ✅ Base transaction data (always present)
+  const transformed = {
     id: backendTransaction.id,
     receiptNumber: backendTransaction.receiptNumber,
     timestamp: backendTransaction.createdAt,
     
-    // ✅ FIX: Use _count structure
+    // Counts
     items_count: itemsCount,
     payments_count: paymentsCount,
     returns_count: returnsCount,
     
-    // Items transformation
-    items: backendTransaction.lines?.map(line => ({
-      id: line.product?.id,
-      name: line.product?.name,
-      sku: line.product?.sku,
-      price: parseFloat(line.unitPrice),
-      quantity: line.qty,
-      discount: parseFloat(line.discount || 0),
-      taxAmount: parseFloat(line.taxAmount || 0),
-      subtotal: parseFloat(line.unitPrice) * line.qty,
-      total: parseFloat(line.lineTotal)
-    })) || [],
-    
-    // Customer data
-    customer: backendTransaction.customer ? {
-      id: backendTransaction.customer.id,
-      name: backendTransaction.customer.name,
-      phone: backendTransaction.customer.phone,
-      email: backendTransaction.customer.email,
-      loyaltyNumber: backendTransaction.customer.loyaltyNumber,
-      loyaltyPoints: backendTransaction.customer.loyaltyPoints
-    } : null,
-    
-    // Cashier data
-    cashier: backendTransaction.cashier ? {
-      id: backendTransaction.cashier.id,
-      name: backendTransaction.cashier.name,
-      email: backendTransaction.cashier.email
-    } : null,
-    
-    // ✅ FIX: Financial data matches backend structure
-    // totalNet = subtotal (before tax)
-    // totalTax = tax amount
-    // totalGross = total (including tax)
+    // Financial data (always present)
     subtotal: parseFloat(backendTransaction.totalNet),
     tax: {
       rate: backendTransaction.metadata?.taxRate || 17,
@@ -359,39 +331,80 @@ export const transformTransactionForFrontend = (backendTransaction) => {
     totalNet: parseFloat(backendTransaction.totalNet),
     totalTax: parseFloat(backendTransaction.totalTax),
     
-    // ✅ FIX: Discount data properly reconstructed
     discount: discountInfo,
-    
-    // Payment data
-    payment: backendTransaction.payments?.[0] ? {
-      method: backendTransaction.payments[0].method,
-      amount: parseFloat(backendTransaction.payments[0].amount),
-      change: parseFloat(backendTransaction.payments[0].amount) - parseFloat(backendTransaction.totalGross)
-    } : null,
-    payments: backendTransaction.payments?.map(p => ({
-      method: p.method,
-      amount: parseFloat(p.amount),
-      createdAt: p.createdAt
-    })) || [],
     
     // Status and metadata
     status: backendTransaction.status,
-    branch: backendTransaction.branch,
+    refundedAmount: parseFloat(backendTransaction.refundedAmount || 0),
     loyaltyPointsEarned: backendTransaction.loyaltyPointsEarned || 0,
     loyaltyPointsUsed: backendTransaction.loyaltyPointsUsed || 0,
-    
-    // Returns if any
-    returns: backendTransaction.returns || [],
-    refundedAmount: parseFloat(backendTransaction.refundedAmount || 0),
-    
-    // Full metadata for debugging
-    _metadata: backendTransaction.metadata,
-    _count: {
-      lines: itemsCount,
-      payments: paymentsCount,
-      returns: returnsCount
-    }
   };
+
+  // ✅ Add detailed data only if relations were included
+  if (backendTransaction.lines && Array.isArray(backendTransaction.lines)) {
+    transformed.items = backendTransaction.lines.map(line => ({
+      id: line.product?.id,
+      name: line.product?.name,
+      sku: line.product?.sku,
+      price: parseFloat(line.unitPrice),
+      quantity: line.qty,
+      discount: parseFloat(line.discount || 0),
+      taxAmount: parseFloat(line.taxAmount || 0),
+      subtotal: parseFloat(line.unitPrice) * line.qty,
+      total: parseFloat(line.lineTotal)
+    }));
+  }
+
+  if (backendTransaction.customer) {
+    transformed.customer = {
+      id: backendTransaction.customer.id,
+      name: backendTransaction.customer.name,
+      phone: backendTransaction.customer.phone,
+      email: backendTransaction.customer.email,
+      loyaltyNumber: backendTransaction.customer.loyaltyNumber,
+      loyaltyPoints: backendTransaction.customer.loyaltyPoints
+    };
+  }
+
+  if (backendTransaction.cashier) {
+    transformed.cashier = {
+      id: backendTransaction.cashier.id,
+      name: backendTransaction.cashier.name,
+      email: backendTransaction.cashier.email
+    };
+  }
+
+  if (backendTransaction.branch) {
+    transformed.branch = backendTransaction.branch;
+  }
+
+  if (backendTransaction.payments && Array.isArray(backendTransaction.payments)) {
+    transformed.payment = backendTransaction.payments[0] ? {
+      method: backendTransaction.payments[0].method,
+      amount: parseFloat(backendTransaction.payments[0].amount),
+      change: parseFloat(backendTransaction.payments[0].amount) - parseFloat(backendTransaction.totalGross)
+    } : null;
+    
+    transformed.payments = backendTransaction.payments.map(p => ({
+      method: p.method,
+      amount: parseFloat(p.amount),
+      createdAt: p.createdAt
+    }));
+  }
+
+  if (backendTransaction.returns && Array.isArray(backendTransaction.returns)) {
+    transformed.returns = backendTransaction.returns;
+  }
+
+  // Full metadata for debugging
+  transformed._metadata = backendTransaction.metadata;
+  transformed._count = {
+    lines: itemsCount,
+    payments: paymentsCount,
+    returns: returnsCount
+  };
+
+  return transformed;
 };
 
 /**
@@ -416,7 +429,6 @@ export const getCurrentCashierId = () => {
 export const validateTransactionData = (transactionData) => {
   const errors = [];
 
-  // Check authentication
   const currentUser = authStorage.getUserData();
   if (!currentUser) {
     errors.push('User not authenticated. Please login.');
@@ -451,6 +463,8 @@ export const validateTransactionData = (transactionData) => {
 export default {
   getAllTransactions,
   getTransactionById,
+  getTransactionsSummary, // ✅ NEW
+  getTransactionDetails, // ✅ NEW
   createTransaction,
   updateTransaction,
   deleteTransaction,

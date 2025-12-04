@@ -20,8 +20,10 @@ export const getAllUsers = async (params = {}) => {
     const data = await get(url);
     return data;
   } catch (error) {
-    const message = error.response?.data?.message || 'Failed to fetch users';
-    throw new Error(message);
+    const message = error.response?.data?.message || error.message || 'Failed to fetch users';
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -35,8 +37,10 @@ export const getUserById = async (id) => {
     const data = await get(`/users/${id}`);
     return data;
   } catch (error) {
-    const message = error.response?.data?.message || 'Failed to fetch user';
-    throw new Error(message);
+    const message = error.response?.data?.message || error.message || 'Failed to fetch user';
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -50,8 +54,10 @@ export const createUser = async (userData) => {
     const data = await post('/users', userData);
     return data;
   } catch (error) {
-    const message = error.response?.data?.message || 'Failed to create user';
-    throw new Error(message);
+    const message = error.response?.data?.message || error.message || 'Failed to create user';
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -66,8 +72,10 @@ export const updateUser = async (id, updateData) => {
     const data = await put(`/users/${id}`, updateData);
     return data;
   } catch (error) {
-    const message = error.response?.data?.message || 'Failed to update user';
-    throw new Error(message);
+    const message = error.response?.data?.message || error.message || 'Failed to update user';
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -81,8 +89,10 @@ export const deleteUser = async (id) => {
     const data = await del(`/users/${id}`);
     return data;
   } catch (error) {
-    const message = error.response?.data?.message || 'Failed to delete user';
-    throw new Error(message);
+    const message = error.response?.data?.message || error.message || 'Failed to delete user';
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -101,8 +111,10 @@ export const getUsersByBranch = async (branchId, params = {}) => {
     const data = await get(url);
     return data;
   } catch (error) {
-    const message = error.response?.data?.message || 'Failed to fetch branch users';
-    throw new Error(message);
+    const message = error.response?.data?.message || error.message || 'Failed to fetch branch users';
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -116,8 +128,10 @@ export const getUsersByRole = async (role) => {
     const data = await get(`/users/role/${role}`);
     return data;
   } catch (error) {
-    const message = error.response?.data?.message || 'Failed to fetch users by role';
-    throw new Error(message);
+    const message = error.response?.data?.message || error.message || 'Failed to fetch users by role';
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -131,8 +145,10 @@ export const getUserStats = async (userId) => {
     const data = await get(`/users/${userId}/stats`);
     return data;
   } catch (error) {
-    const message = error.response?.data?.message || 'Failed to fetch user statistics';
-    throw new Error(message);
+    const message = error.response?.data?.message || error.message || 'Failed to fetch user statistics';
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -147,8 +163,10 @@ export const changePassword = async (id, passwordData) => {
     const data = await post(`/users/${id}/change-password`, passwordData);
     return data;
   } catch (error) {
-    const message = error.response?.data?.message || 'Failed to change password';
-    throw new Error(message);
+    const message = error.response?.data?.message || error.message || 'Failed to change password';
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -163,8 +181,10 @@ export const resetPassword = async (id, resetData) => {
     const data = await post(`/users/${id}/reset-password`, resetData);
     return data;
   } catch (error) {
-    const message = error.response?.data?.message || 'Failed to reset password';
-    throw new Error(message);
+    const message = error.response?.data?.message || error.message || 'Failed to reset password';
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -177,8 +197,10 @@ export const getUsersSummary = async () => {
     const data = await get('/users/analytics/summary');
     return data;
   } catch (error) {
-    const message = error.response?.data?.message || 'Failed to fetch users summary';
-    throw new Error(message);
+    const message = error.response?.data?.message || error.message || 'Failed to fetch users summary';
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 
@@ -192,8 +214,10 @@ export const validateEmail = async (emailData) => {
     const data = await post('/users/validate/email', emailData);
     return data;
   } catch (error) {
-    const message = error.response?.data?.message || 'Failed to validate email';
-    throw new Error(message);
+    const message = error.response?.data?.message || error.message || 'Failed to validate email';
+    const backendError = new Error(message);
+    backendError.response = error.response; // Preserve response for hook
+    throw backendError;
   }
 };
 

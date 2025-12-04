@@ -3,6 +3,7 @@ import Table from '../common/Table';
 import Badge from '../common/Badge';
 import Button from '../common/Button';
 import { formatCurrency } from '../../utils/formatters';
+import { CURRENCY_SYMBOL } from '../../config/constants';
 import { Package, AlertTriangle, Plus } from 'lucide-react';
 
 /**
@@ -20,6 +21,7 @@ const LowStockList = ({
   sortColumn = null,
   sortDirection = 'asc',
   onSort,
+  threshold = 10, // ✅ Add threshold prop
 }) => {
   // Define columns
   const columns = [
@@ -100,7 +102,7 @@ const LowStockList = ({
       width: '100px',
       render: (value, row) => (
         <span className="text-sm text-gray-600">
-          {value || 0} {row.unit || 'pcs'}
+          {value || threshold} {row.unit || 'pcs'}
         </span>
       ),
     },
@@ -112,7 +114,7 @@ const LowStockList = ({
       width: '120px',
       render: (value, row) => (
         <span className="text-sm text-gray-600">
-          {value || 0} {row.unit || 'pcs'}
+          {value || threshold} {row.unit || 'pcs'}
         </span>
       ),
     },
@@ -123,7 +125,7 @@ const LowStockList = ({
       align: 'right',
       width: '100px',
       render: (value) => (
-        <span className="font-semibold">{formatCurrency(value)}</span>
+        <span className="font-semibold">{CURRENCY_SYMBOL}{value}</span>
       ),
     },
     {
@@ -133,7 +135,7 @@ const LowStockList = ({
       width: '120px',
       render: (_, row) => {
         const isOutOfStock = row.stock === 0;
-        const isCritical = row.stock <= (row.minStock || 0);
+        const isCritical = row.stock > 0 && row.stock <= (row.minStock || threshold);
 
         return (
           <Badge variant={isOutOfStock ? 'danger' : isCritical ? 'warning' : 'gray'} size="sm">
@@ -179,9 +181,9 @@ const LowStockList = ({
     },
   ];
 
-  // Calculate statistics
+  // Calculate statistics - use threshold as fallback since minStock may not be in data
   const outOfStockCount = products.filter(p => p.stock === 0).length;
-  const lowStockCount = products.filter(p => p.stock > 0 && p.stock <= (p.minStock || 0)).length;
+  const lowStockCount = products.filter(p => p.stock > 0 && p.stock <= threshold).length;
 
   return (
     <div className="space-y-4">

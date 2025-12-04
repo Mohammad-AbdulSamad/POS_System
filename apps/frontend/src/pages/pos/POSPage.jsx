@@ -164,23 +164,26 @@ const POSPage = () => {
         </Badge>
       )
     },
-    {
-      key: 'actions',
-      header: 'Actions',
-      align: 'right',
-      // width: '100px',
-      render: (_, transaction) => (
-        <Button
-          variant="ghost"
-          size="sm"
-          icon={Eye}
-          onClick={() => pos.viewTransaction(transaction)}
-        >
-          View
-        </Button>
-      )
-    }
-  ], [pos]);
+ {
+    key: 'actions',
+    header: 'Actions',
+    align: 'right',
+    render: (_, transaction) => (
+      <Button
+        variant="ghost"
+        size="sm"
+        icon={Eye}
+        onClick={async () => {
+          // ✅ viewTransaction now fetches full details automatically
+          await pos.viewTransaction(transaction);
+        }}
+        disabled={pos.isFetchingTransactionDetails} // ✅ Show loading state
+      >
+        {pos.isFetchingTransactionDetails ? 'Loading...' : 'View'}
+      </Button>
+    )
+  }
+], [pos]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -350,7 +353,10 @@ const POSPage = () => {
                       emptyMessage="No transactions found. Complete a sale to see it here."
                       hover={true}
                       compact={false}
-                      onRowClick={(transaction) => pos.viewTransaction(transaction)}
+                     onClick={async (transaction) => {
+      // ✅ viewTransaction now fetches full details automatically
+      await pos.viewTransaction(transaction);
+         }}
                       className="h-full"
                     />
                   </div>
@@ -463,12 +469,13 @@ const POSPage = () => {
       />
 
       <ReceiptPreview
-        isOpen={pos.modals.receipt}
-        onClose={pos.newTransaction}
-        transaction={pos.selectedTransaction}
-        store={storeInfo}
-        onPrint={() => console.log('Print receipt')}
-      />
+  isOpen={pos.modals.receipt}
+  onClose={pos.newTransaction}
+  transaction={pos.selectedTransaction}
+  store={storeInfo}
+  onPrint={() => console.log('Print receipt')}
+  loading={pos.isFetchingTransactionDetails} // ✅ Add loading prop
+/>
     </MainLayout>
   );
 };

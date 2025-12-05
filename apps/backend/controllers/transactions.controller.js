@@ -187,13 +187,182 @@ const validatePayments = (payments, totalGross) => {
   return totalPayment;
 };
 
-// ========================================
-// 🔥 TRANSACTION ENDPOINTS
-// ========================================
+// // ========================================
+// // 🔥 TRANSACTION ENDPOINTS
+// // ========================================
+
+// /**
+//  * ✅ Get all transactions with pagination and filters
+//  * ✅ FIXED: Consistent _count structure
+//  */
+// export const getAllTransactions = asyncHandler(async (req, res) => {
+//   const { 
+//     include_relations = 'false',
+//     branchId,
+//     status,
+//     startDate,
+//     endDate,
+//     page = 1,
+//     limit = 50 
+//   } = req.query;
+  
+//   const skip = (parseInt(page) - 1) * parseInt(limit);
+  
+//   const where = {
+//     ...(branchId && { branchId }),
+//     ...(status && { status }),
+//     ...(startDate && endDate && {
+//       createdAt: {
+//         gte: new Date(startDate),
+//         lte: new Date(endDate)
+//       }
+//     })
+//   };
+
+//   const [transactions, total] = await Promise.all([
+//     prisma.transaction.findMany({
+//       where,
+//       include: include_relations === 'true' ? {
+//         branch: { select: { id: true, name: true, address: true, phone: true } },
+//         cashier: { select: { id: true, name: true, email: true } },
+//         customer: { 
+//           select: { 
+//             id: true, 
+//             name: true, 
+//             phone: true, 
+//             email: true,
+//             loyaltyNumber: true,
+//             loyaltyPoints: true 
+//           } 
+//         },
+//         lines: {
+//           include: {
+//             product: {
+//               select: { id: true, name: true, sku: true, unit: true }
+//             }
+//           }
+//         },
+//         payments: true,
+//         returns: {
+//           select: {
+//             id: true,
+//             returnAmount: true,
+//             reason: true,
+//             createdAt: true
+//           }
+//         },
+//         _count: {
+//           select: {
+//             lines: true,
+//             payments: true,
+//             returns: true
+//           }
+//         }
+//       } : {
+//         branch: { select: { id: true, name: true } },
+//         cashier: { select: { id: true, name: true } },
+//         customer: { select: { id: true, name: true } },
+//         payments: { select: { id: true, method: true, amount: true } },
+//         _count: {
+//           select: {
+//             lines: true,
+//             payments: true,
+//             returns: true
+//           }
+//         }
+//       },
+//       skip: parseInt(skip),
+//       take: parseInt(limit),
+//       orderBy: { createdAt: 'desc' }
+//     }),
+//     prisma.transaction.count({ where })
+//   ]);
+
+//   logger.logDatabase('READ', {
+//     model: 'Transaction',
+//     count: transactions.length,
+//     userId: req.user?.id,
+//     filters: { branchId, status, startDate, endDate }
+//   });
+  
+//   res.json({
+//     transactions,
+//     pagination: {
+//       page: parseInt(page),
+//       limit: parseInt(limit),
+//       total,
+//       pages: Math.ceil(total / parseInt(limit))
+//     }
+//   });
+// });
+
+// Add this BEFORE getAllTransactions function
 
 /**
- * ✅ Get all transactions with pagination and filters
- * ✅ FIXED: Consistent _count structure
+ * ✅ Build search conditions based on selected field
+ * More efficient than searching all fields
+ */
+const buildSearchConditions = (searchValue, searchField) => {
+  const search = searchValue.trim();
+  
+  // If no specific field, search all fields (fallback)
+  if (!searchField) {
+    return [
+      { receiptNumber: { contains: search, mode: 'insensitive' } },
+      { customer: { name: { contains: search, mode: 'insensitive' } } },
+      { customer: { phone: { contains: search, mode: 'insensitive' } } },
+      { customer: { email: { contains: search, mode: 'insensitive' } } },
+      { cashier: { name: { contains: search, mode: 'insensitive' } } },
+      { id: search }
+    ];
+  }
+
+  // Field-specific search (more efficient)
+  switch (searchField) {
+    case 'receiptNumber':
+      return [
+        { receiptNumber: { equals: search, mode: 'insensitive' } }, // Exact match first
+        { receiptNumber: { contains: search, mode: 'insensitive' } } // Partial match
+      ];
+    
+    case 'customerName':
+      return [
+        { customer: { name: { contains: search, mode: 'insensitive' } } }
+      ];
+    
+    case 'customerPhone':
+      // Remove spaces and dashes for better matching
+      const cleanPhone = search.replace(/[\s\-]/g, '');
+      return [
+        { customer: { phone: { contains: cleanPhone, mode: 'insensitive' } } }
+      ];
+    
+    case 'customerEmail':
+      return [
+        { customer: { email: { contains: search, mode: 'insensitive' } } }
+      ];
+    
+    case 'cashierName':
+      return [
+        { cashier: { name: { contains: search, mode: 'insensitive' } } }
+      ];
+    
+    case 'transactionId':
+      return [
+        { id: search }
+      ];
+    
+    default:
+      // Fallback to receipt number if unknown field
+      return [
+        { receiptNumber: { contains: search, mode: 'insensitive' } }
+      ];
+  }
+};
+
+/**
+ * ✅ Get all transactions with pagination, filters, and SEARCH
+ * ✅ ADDED: Comprehensive search functionality
  */
 export const getAllTransactions = asyncHandler(async (req, res) => {
   const { 
@@ -202,12 +371,17 @@ export const getAllTransactions = asyncHandler(async (req, res) => {
     status,
     startDate,
     endDate,
+    search, // ✅ Search value
+    searchField, // ✅ NEW: Which field to search
     page = 1,
-    limit = 50 
+    limit = 50,
+    sortBy = 'createdAt',
+    sortOrder = 'desc'
   } = req.query;
   
   const skip = (parseInt(page) - 1) * parseInt(limit);
   
+  // ✅ Build where clause with search
   const where = {
     ...(branchId && { branchId }),
     ...(status && { status }),
@@ -216,8 +390,37 @@ export const getAllTransactions = asyncHandler(async (req, res) => {
         gte: new Date(startDate),
         lte: new Date(endDate)
       }
+    }),
+    // ✅ IMPROVED: Field-specific search
+    ...(search && {
+      OR: buildSearchConditions(search, req.query.searchField)
     })
   };
+
+  // ✅ NEW: Dynamic sorting
+  const orderBy = {};
+  
+  // Handle different sort fields
+  switch (sortBy) {
+    case 'receiptNumber':
+      orderBy.receiptNumber = sortOrder;
+      break;
+    case 'customer':
+      orderBy.customer = { name: sortOrder };
+      break;
+    case 'cashier':
+      orderBy.cashier = { name: sortOrder };
+      break;
+    case 'total':
+    case 'totalGross':
+      orderBy.totalGross = sortOrder;
+      break;
+    case 'timestamp':
+    case 'createdAt':
+    default:
+      orderBy.createdAt = sortOrder;
+      break;
+  }
 
   const [transactions, total] = await Promise.all([
     prisma.transaction.findMany({
@@ -261,7 +464,7 @@ export const getAllTransactions = asyncHandler(async (req, res) => {
       } : {
         branch: { select: { id: true, name: true } },
         cashier: { select: { id: true, name: true } },
-        customer: { select: { id: true, name: true } },
+        customer: { select: { id: true, name: true, phone: true } },
         payments: { select: { id: true, method: true, amount: true } },
         _count: {
           select: {
@@ -273,7 +476,7 @@ export const getAllTransactions = asyncHandler(async (req, res) => {
       },
       skip: parseInt(skip),
       take: parseInt(limit),
-      orderBy: { createdAt: 'desc' }
+      orderBy
     }),
     prisma.transaction.count({ where })
   ]);
@@ -282,7 +485,7 @@ export const getAllTransactions = asyncHandler(async (req, res) => {
     model: 'Transaction',
     count: transactions.length,
     userId: req.user?.id,
-    filters: { branchId, status, startDate, endDate }
+    filters: { branchId, status, startDate, endDate, search }
   });
   
   res.json({
@@ -293,6 +496,178 @@ export const getAllTransactions = asyncHandler(async (req, res) => {
       total,
       pages: Math.ceil(total / parseInt(limit))
     }
+  });
+});
+
+  
+
+
+/**
+ * ✅ NEW: Search transactions with advanced filters
+ * Optimized for fast searching across multiple fields
+ * Route: GET /api/transactions/search?q=STMA-20251106-0001
+ */
+export const searchTransactions = asyncHandler(async (req, res) => {
+  const { 
+    q, // Search query
+    branchId,
+    status,
+    startDate,
+    endDate,
+    page = 1,
+    limit = 50 
+  } = req.query;
+
+  if (!q || q.trim() === '') {
+    throw new BadRequestError('Search query is required');
+  }
+
+  const searchTerm = q.trim();
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+
+  // Build comprehensive search conditions
+  const where = {
+    ...(branchId && { branchId }),
+    ...(status && { status }),
+    ...(startDate && endDate && {
+      createdAt: {
+        gte: new Date(startDate),
+        lte: new Date(endDate)
+      }
+    }),
+    OR: [
+      // 1. Receipt Number (highest priority - exact match first)
+      {
+        receiptNumber: {
+          equals: searchTerm,
+          mode: 'insensitive'
+        }
+      },
+      // 2. Receipt Number (partial match)
+      {
+        receiptNumber: {
+          contains: searchTerm,
+          mode: 'insensitive'
+        }
+      },
+      // 3. Customer Name
+      {
+        customer: {
+          name: {
+            contains: searchTerm,
+            mode: 'insensitive'
+          }
+        }
+      },
+      // 4. Customer Phone (remove spaces/dashes for better matching)
+      {
+        customer: {
+          phone: {
+            contains: searchTerm.replace(/[\s\-]/g, ''),
+            mode: 'insensitive'
+          }
+        }
+      },
+      // 5. Customer Email
+      {
+        customer: {
+          email: {
+            contains: searchTerm,
+            mode: 'insensitive'
+          }
+        }
+      },
+      // 6. Customer Loyalty Number
+      {
+        customer: {
+          loyaltyNumber: {
+            contains: searchTerm,
+            mode: 'insensitive'
+          }
+        }
+      },
+      // 7. Cashier Name
+      {
+        cashier: {
+          name: {
+            contains: searchTerm,
+            mode: 'insensitive'
+          }
+        }
+      },
+      // 8. Transaction ID (if pasting UUID)
+      {
+        id: searchTerm
+      }
+    ]
+  };
+
+  const [transactions, total] = await Promise.all([
+    prisma.transaction.findMany({
+      where,
+      include: {
+        branch: { 
+          select: { id: true, name: true } 
+        },
+        cashier: { 
+          select: { id: true, name: true, email: true } 
+        },
+        customer: { 
+          select: { 
+            id: true, 
+            name: true, 
+            phone: true, 
+            email: true,
+            loyaltyNumber: true 
+          } 
+        },
+        payments: { 
+          select: { 
+            id: true, 
+            method: true, 
+            amount: true 
+          } 
+        },
+        _count: {
+          select: {
+            lines: true,
+            payments: true,
+            returns: true
+          }
+        }
+      },
+      skip: parseInt(skip),
+      take: parseInt(limit),
+      orderBy: [
+        // Prioritize exact receipt number matches
+        { 
+          receiptNumber: searchTerm.toUpperCase().startsWith('STMA-') || 
+                        searchTerm.toUpperCase().startsWith('REC-') 
+            ? 'desc' 
+            : 'asc' 
+        },
+        { createdAt: 'desc' }
+      ]
+    }),
+    prisma.transaction.count({ where })
+  ]);
+
+  logger.info({
+    message: 'Transaction search performed',
+    searchQuery: searchTerm,
+    resultsCount: transactions.length,
+    userId: req.user?.id
+  });
+
+  res.json({
+    transactions,
+    pagination: {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      total,
+      pages: Math.ceil(total / parseInt(limit))
+    },
+    searchQuery: searchTerm
   });
 });
 

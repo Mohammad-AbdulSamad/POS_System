@@ -2,10 +2,8 @@
 import { get, post, put, del } from '../utils/apiClient';
 import { authStorage } from '../utils/storage';
 
-/**
- * ✅ UPDATED: Get all transactions with LIGHTWEIGHT fetching by default
- * Pass includeRelations=true only when you need full details
- */
+// src/services/transactionService.js
+
 export const getAllTransactions = async (params = {}) => {
   try {
     const queryParams = new URLSearchParams();
@@ -17,11 +15,23 @@ export const getAllTransactions = async (params = {}) => {
     if (params.startDate) queryParams.append('startDate', params.startDate);
     if (params.endDate) queryParams.append('endDate', params.endDate);
     
+    // ✅ ADD THESE TWO LINES
+    if (params.search) queryParams.append('search', params.search);
+    if (params.searchField) queryParams.append('searchField', params.searchField);
+    
+    // ✅ ADD SORTING (you're also missing these)
+    if (params.sortBy) queryParams.append('sortBy', params.sortBy);
+    if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
+    
     // ✅ FIX: Default to lightweight fetching for lists
     const includeRelations = params.includeRelations ?? params.include_relations ?? false;
     queryParams.append('include_relations', includeRelations ? 'true' : 'false');
 
     const url = `/transactions${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    
+    // 🔍 Debug log to verify URL
+    console.log('🌐 API Request URL:', url);
+    
     const data = await get(url);
     console.log('✅ Fetched transactions (lightweight):', data);
     return data;

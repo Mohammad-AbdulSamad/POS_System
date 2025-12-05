@@ -29,6 +29,8 @@ router.get("/",
   transactionsController.getAllTransactions
 );
 
+router.get('/search', transactionsController.searchTransactions);
+
 // GET transaction by ID - All authenticated users (need to view transactions)
 router.get("/:id", transactionsController.getTransactionById);
 

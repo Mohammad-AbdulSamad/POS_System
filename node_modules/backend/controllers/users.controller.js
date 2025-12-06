@@ -713,7 +713,7 @@ import { NotFoundError, BadRequestError, ConflictError } from "../utils/errors.u
 import logger from "../config/logger.config.js";
 
 const prisma = new PrismaClient();
-const SALT_ROUNDS = 10;
+const SALT_ROUNDS = 10;  
 
 // Valid roles
 const VALID_ROLES = ['ADMIN', 'MANAGER', 'CASHIER', 'STOCK_MANAGER'];

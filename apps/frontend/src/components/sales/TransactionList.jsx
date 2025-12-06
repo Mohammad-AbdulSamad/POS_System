@@ -177,7 +177,6 @@ const TransactionList = ({
         };
         return (
           <Badge variant={statusVariants[value] || 'gray'} size="sm">
-            {value?.replace(/_/g, ' ')}
           </Badge>
         );
       },

@@ -15,6 +15,10 @@ import StockAdjustmentPage from './pages/inventory/StockAdjustmentPage';
 import SuppliersPage from './pages/inventory/SuppliersPage';
 import SalesHistoryPage from './pages/sales/SalesHistoryPage';
 import TransactionDetailsPage from './pages/sales/TransactionDetailsPage';
+import UsersListPage from './pages/users/UserListPage';
+import AddUserPage from './pages/users/AddUserPage';
+import UserDetailsPage from './pages/users/UserDetailsPage';
+import EditUserPage from './pages/users/EditUserPage';
 
 
 const Temp = () => {
@@ -126,7 +130,26 @@ const Temp = () => {
           }
         />
 
-       
+        {/*User Management routes */}
+        <Route
+          path="/users"
+          element={
+            <ProtectedRoute>
+              <UsersListPage />
+            </ProtectedRoute>
+          }
+        />
+
+        
+
+        <Route
+          path="/users/add"
+          element={
+            <ProtectedRoute>
+              <AddUserPage />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Product details and edit (dynamic) - ensure these come after static routes */}
         <Route
@@ -155,6 +178,33 @@ const Temp = () => {
             </ProtectedRoute>
           }
         />
+
+        {/* User Management routes (dynamic) */}
+
+
+        
+
+        <Route
+          path="/users/:id"
+          element={
+            <ProtectedRoute>
+              <UserDetailsPage />
+            </ProtectedRoute>
+          }
+        />
+
+
+
+          <Route
+          path="/users/:id/edit"
+          element={ 
+            <ProtectedRoute>
+              <EditUserPage />
+            </ProtectedRoute>
+          }
+        />
+
+
 
         {/* Example: Admin-only Route */}
         {/* <Route
